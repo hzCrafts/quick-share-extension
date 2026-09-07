@@ -35,14 +35,34 @@ const generateQr = async () => {
 onMounted(generateQr);
 watch(() => [props.options.showQrCode, props.post.url], generateQr);
 
-// 平台标识
-const platformLabel = computed(() => {
+// 平台显示配置（Icon + 纯中文/极简名称）
+const platformConfig = computed(() => {
   switch (props.post.platform) {
-    case 'x': return 'X (Twitter)';
-    case 'zhihu': return '知乎 Zhihu';
-    case 'jike': return '即刻 Jike';
-    case 'weibo': return '微博 Weibo';
-    default: return 'Web';
+    case 'zhihu':
+      return {
+        name: '知乎',
+        badgeBg: 'bg-[#0066ff]/10 text-[#0066ff]',
+      };
+    case 'x':
+      return {
+        name: 'X',
+        badgeBg: 'bg-black/10 dark:bg-white/15 text-current',
+      };
+    case 'weibo':
+      return {
+        name: '微博',
+        badgeBg: 'bg-[#e6162d]/10 text-[#e6162d]',
+      };
+    case 'jike':
+      return {
+        name: '即刻',
+        badgeBg: 'bg-[#ffe411]/20 text-[#333]',
+      };
+    default:
+      return {
+        name: '网页快照',
+        badgeBg: 'bg-slate-500/10 text-slate-600',
+      };
   }
 });
 </script>
@@ -71,8 +91,8 @@ const platformLabel = computed(() => {
         padding: '28px',
       }"
     >
-      <!-- Header: 作者信息 & 平台标识 -->
-      <div class="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-black/5 dark:border-white/10">
+      <!-- Header: 作者信息 & 平台标识 (无分割线) -->
+      <div class="flex items-center justify-between gap-3 mb-5">
         <div class="flex items-center gap-3 min-w-0">
           <img
             v-if="post.author.avatarUrl"
@@ -95,20 +115,46 @@ const platformLabel = computed(() => {
               {{ post.author.name }}
             </div>
             <div class="text-xs truncate opacity-75 mt-0.5" :class="currentTheme.subtextClass">
-              {{ post.author.handle || post.createdAt || platformLabel }}
+              {{ post.author.handle || post.createdAt || platformConfig.name }}
             </div>
           </div>
         </div>
 
-        <!-- 平台胶囊 Badge -->
+        <!-- 平台胶囊 Badge (去 border，带 Logo) -->
         <div
-          class="shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border opacity-90"
-          :class="[
-            currentTheme.borderClass,
-            currentTheme.subtextClass
-          ]"
+          class="shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide flex items-center gap-1.5"
+          :class="platformConfig.badgeBg"
         >
-          {{ platformLabel }}
+          <!-- 知乎 Logo -->
+          <svg
+            v-if="post.platform === 'zhihu'"
+            class="w-3.5 h-3.5 fill-current"
+            viewBox="0 0 24 24"
+          >
+            <path d="M5.938 3.5v3.125h3.125v1.875H5.938v3.125h4.375V13.5H4.062V1.625h6.25V3.5H5.938zm5.624 8.75c-.776 2.052-2.128 3.754-3.924 4.887L6.25 15.5c1.875-1.125 3.125-2.875 3.75-4.875l1.562 1.625zm6.563-8.75V1.625h-5.625v13.75h1.875V8.125h2.812l3.438 7.25h2.188l-3.75-7.875c1.25-.625 2.187-1.875 2.5-3.625h-3.438V3.5zm0 1.875h1.563c-.313 1-.938 1.563-1.563 1.875V5.375z"/>
+          </svg>
+          <!-- X Logo -->
+          <svg
+            v-else-if="post.platform === 'x'"
+            class="w-3 h-3 fill-current"
+            viewBox="0 0 24 24"
+          >
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          <!-- 通用 Web Icon -->
+          <svg
+            v-else
+            class="w-3.5 h-3.5 stroke-current fill-none"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+            <path d="M2 12h20"/>
+          </svg>
+          <span>{{ platformConfig.name }}</span>
         </div>
       </div>
 
@@ -172,13 +218,10 @@ const platformLabel = computed(() => {
         </div>
       </div>
 
-      <!-- Footer: 时间戳、二维码与品牌水印 -->
+      <!-- Footer: 时间戳、二维码与品牌水印 (无 border 干扰) -->
       <div
-        class="pt-4 border-t flex items-end justify-between gap-4 text-xs"
-        :class="[
-          currentTheme.borderClass,
-          currentTheme.subtextClass
-        ]"
+        class="pt-2 flex items-end justify-between gap-4 text-xs opacity-90"
+        :class="currentTheme.subtextClass"
       >
         <div class="space-y-1">
           <div v-if="post.createdAt" class="opacity-80">

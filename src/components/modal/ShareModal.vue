@@ -3,7 +3,7 @@ import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { PostData } from '@/types/post';
 import { type CardRenderOptions, type CardThemeId, PRESET_THEMES } from '@/types/theme';
 import ShareCard from '@/components/card/ShareCard.vue';
-import { domToBlob, domToPng } from 'modern-screenshot';
+import { domToBlob } from 'modern-screenshot';
 import { 
   X, 
   Copy, 
@@ -31,7 +31,7 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-// 离屏真实未缩放渲染源
+// 离屏渲染与视口引用
 const offscreenCardRef = ref<HTMLElement | null>(null);
 const viewportRef = ref<HTMLElement | null>(null);
 
@@ -48,14 +48,14 @@ const options = reactive<CardRenderOptions>({
   aspectRatio: 'auto',
 });
 
-// 生成的高清预览图片
+// 生成的高清预览图片（统一 2.5x Retina 级高分辨率）
 const previewDataUrl = ref<string>('');
 const previewBlob = ref<Blob | null>(null);
 const imageNaturalWidth = ref<number>(0);
 const imageNaturalHeight = ref<number>(0);
 const isRendering = ref<boolean>(false);
 
-// 图片查看器变换状态（平移与缩放）
+// 缩放与平移状态
 const scale = ref<number>(1);
 const fitScale = ref<number>(1);
 const translateX = ref<number>(0);
@@ -72,7 +72,7 @@ const isDownloading = ref(false);
 const copySuccess = ref(false);
 
 /**
- * 触发离屏真实 DOM 渲染为高清图片
+ * 触发离屏真实 DOM 渲染为高清图片（保证下载与复制完全一致）
  */
 let renderTimer: any = null;
 const triggerRender = () => {
@@ -81,13 +81,12 @@ const triggerRender = () => {
   renderTimer = setTimeout(async () => {
     if (!offscreenCardRef.value) return;
     try {
-      // 预留微任务等待 Vue DOM 更新与外部字体/图片加载
       await nextTick();
       await new Promise((r) => setTimeout(r, 120));
 
       const blob = await domToBlob(offscreenCardRef.value, {
-        scale: 2,
-        quality: 0.95,
+        scale: 2.5, // 统一 2.5x Retina 高清输出
+        quality: 0.98,
         type: 'image/png',
         features: {
           removeControlCharacter: true,
@@ -95,12 +94,15 @@ const triggerRender = () => {
       });
 
       if (blob) {
+        if (previewDataUrl.value) {
+          URL.revokeObjectURL(previewDataUrl.value);
+        }
         previewBlob.value = blob;
         const url = URL.createObjectURL(blob);
         const img = new Image();
         img.onload = () => {
-          imageNaturalWidth.value = img.naturalWidth / 2; // 回到 1x 逻辑像素
-          imageNaturalHeight.value = img.naturalHeight / 2;
+          imageNaturalWidth.value = img.naturalWidth / 2.5; // 逻辑 1x 像素
+          imageNaturalHeight.value = img.naturalHeight / 2.5;
           previewDataUrl.value = url;
           isRendering.value = false;
           nextTick(resetToFit);
@@ -115,7 +117,7 @@ const triggerRender = () => {
 };
 
 /**
- * 重置为自适应全图居中（头尾完全可见）
+ * 自适应居中（头尾完全可见，不留死角）
  */
 const resetToFit = () => {
   if (!viewportRef.value || !imageNaturalWidth.value || !imageNaturalHeight.value) return;
@@ -126,7 +128,7 @@ const resetToFit = () => {
     const scaleX = vWidth / imageNaturalWidth.value;
     const scaleY = vHeight / imageNaturalHeight.value;
     const calculatedFit = Math.min(scaleX, scaleY, 1);
-    fitScale.value = Math.max(0.1, Number(calculatedFit.toFixed(3)));
+    fitScale.value = Math.max(0.08, Number(calculatedFit.toFixed(3)));
     scale.value = fitScale.value;
     translateX.value = 0;
     translateY.value = 0;
@@ -134,20 +136,38 @@ const resetToFit = () => {
 };
 
 /**
- * 鼠标滚轮缩放
+ * 核心算法：基于鼠标光标位置的锚定缩放 (Zoom-towards-Cursor)
+ * 保证滚轮缩放时，光标所指位置在视图中绝对静止，不产生漂移
  */
 const handleWheel = (e: WheelEvent) => {
   e.preventDefault();
+  if (!viewportRef.value) return;
+
+  const rect = viewportRef.value.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  // 鼠标相对于视口中心的坐标偏移
+  const mx = mouseX - rect.width / 2;
+  const my = mouseY - rect.height / 2;
+
   const delta = e.deltaY < 0 ? 0.08 : -0.08;
-  const nextScale = Number((scale.value + delta).toFixed(2));
-  scale.value = Math.min(Math.max(0.1, nextScale), 3.0);
+  const oldScale = scale.value;
+  const newScale = Math.min(Math.max(0.1, Number((oldScale + delta).toFixed(3))), 3.5);
+
+  if (newScale === oldScale) return;
+
+  const ratio = newScale / oldScale;
+  translateX.value = mx - (mx - translateX.value) * ratio;
+  translateY.value = my - (my - translateY.value) * ratio;
+  scale.value = newScale;
 };
 
 /**
- * 鼠标拖拽平移
+ * 拖拽平移交互
  */
 const handleMouseDown = (e: MouseEvent) => {
-  if (e.button !== 0) return; // 仅限左键
+  if (e.button !== 0) return;
   isDragging.value = true;
   dragStartX.value = e.clientX;
   dragStartY.value = e.clientY;
@@ -167,12 +187,12 @@ const handleMouseUp = () => {
   isDragging.value = false;
 };
 
-// 缩放快捷方法
+// 缩放辅助
 const zoomIn = () => {
-  scale.value = Math.min(3.0, Number((scale.value + 0.1).toFixed(2)));
+  scale.value = Math.min(3.5, Number((scale.value + 0.15).toFixed(2)));
 };
 const zoomOut = () => {
-  scale.value = Math.max(0.1, Number((scale.value - 0.1).toFixed(2)));
+  scale.value = Math.max(0.1, Number((scale.value - 0.15).toFixed(2)));
 };
 const setOriginalSize = () => {
   scale.value = 1;
@@ -180,7 +200,7 @@ const setOriginalSize = () => {
   translateY.value = 0;
 };
 
-// 复制图片到剪贴板（直接消费已渲染的 Blob，秒级完成）
+// 复制图片（使用同一份高清 Blob，秒级完成）
 const handleCopy = async () => {
   if (!previewBlob.value) {
     alert('图片正在渲染中，请稍候...');
@@ -205,18 +225,20 @@ const handleCopy = async () => {
   }
 };
 
-// 下载 PNG（直接消费已生成的 DataURL/Blob，秒级完成）
+// 下载 PNG（直接使用已生成的同一份高质量 Blob，清晰度 100% 一致）
 const handleDownload = async () => {
-  if (!previewDataUrl.value) {
+  if (!previewBlob.value) {
     alert('图片正在渲染中，请稍候...');
     return;
   }
   try {
     isDownloading.value = true;
+    const url = URL.createObjectURL(previewBlob.value);
     const link = document.createElement('a');
     link.download = `quick-share-${props.post.platform}-${Date.now()}.png`;
-    link.href = previewDataUrl.value;
+    link.href = url;
     link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (err) {
     console.error('[QuickShare] 下载失败:', err);
     alert('下载图片失败');
@@ -249,9 +271,12 @@ onUnmounted(() => {
   }
   window.removeEventListener('mouseup', handleMouseUp);
   if (renderTimer) clearTimeout(renderTimer);
+  if (previewDataUrl.value) {
+    URL.revokeObjectURL(previewDataUrl.value);
+  }
 });
 
-// 监听配置项变化重新渲染离屏图片
+// 监听选项变动重新渲染
 watch(
   [
     () => options.themeId,
@@ -273,7 +298,7 @@ watch(
     class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm transition-opacity text-slate-800 font-sans"
     @click.self="emit('close')"
   >
-    <!-- ================= 离屏未缩放真实渲染源 (绝对不会受任何 transform 裁剪) ================= -->
+    <!-- ================= 离屏真实渲染源 (不受任何 CSS 缩放约束) ================= -->
     <div
       class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1]"
       aria-hidden="true"
@@ -415,7 +440,7 @@ watch(
           </div>
         </div>
 
-        <!-- 右侧：纯图片交互画布区（支持拖拽平移、滚轮缩放、自适应一屏完整呈现） -->
+        <!-- 右侧：纯图片交互画布区（光标锚定缩放 + 拖拽平移） -->
         <div
           ref="viewportRef"
           class="flex-1 relative overflow-hidden bg-slate-900/5 select-none flex items-center justify-center min-h-0"
@@ -429,7 +454,7 @@ watch(
             <button
               @click.stop="zoomOut"
               class="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
-              title="缩小 (或向下滚轮)"
+              title="缩小 (向下滚轮)"
             >
               <ZoomOut class="w-4 h-4" />
             </button>
@@ -439,7 +464,7 @@ watch(
             <button
               @click.stop="zoomIn"
               class="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
-              title="放大 (或向上滚轮)"
+              title="放大 (向上滚轮)"
             >
               <ZoomIn class="w-4 h-4" />
             </button>
@@ -447,7 +472,7 @@ watch(
             <button
               @click.stop="resetToFit"
               class="px-2.5 py-1 hover:bg-sky-50 hover:text-sky-600 text-slate-700 rounded-lg transition-colors font-medium flex items-center gap-1 cursor-pointer"
-              title="自适应居中"
+              title="自适应全图居中"
             >
               <Maximize2 class="w-3.5 h-3.5" />
               自适应
@@ -464,7 +489,7 @@ watch(
           <!-- 拖拽提示 Badge -->
           <div class="absolute bottom-4 left-4 z-20 pointer-events-none px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-lg text-white text-[11px] flex items-center gap-1.5 opacity-80">
             <Move class="w-3 h-3" />
-            按住左键拖拽平移 • 滚轮缩放
+            光标定位缩放 • 按住左键拖拽平移
           </div>
 
           <!-- Loading 状态浮层 -->
@@ -479,7 +504,7 @@ watch(
           <!-- 纯图片渲染展示层 -->
           <div
             v-if="previewDataUrl"
-            class="transition-transform duration-75 ease-out shrink-0"
+            class="shrink-0"
             :style="{
               transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
               transformOrigin: 'center center',
@@ -501,7 +526,7 @@ watch(
       <!-- Footer: 操作栏 -->
       <div class="px-6 py-3.5 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
         <span class="text-xs text-slate-400">
-          已就绪 • 导出将生成 2x Retina 级高分辨率完整长图
+          已就绪 • 复制与下载均导出 2.5x Retina 级高分辨率完整长图
         </span>
 
         <div class="flex items-center gap-3">
