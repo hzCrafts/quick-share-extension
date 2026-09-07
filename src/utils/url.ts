@@ -47,3 +47,31 @@ export function cleanShareUrl(rawUrl: string): string {
     return rawUrl.split('?')[0] || rawUrl;
   }
 }
+
+/**
+ * 将 Google / Gemini 缩略图或受限尺寸 URL 转换为超高清全尺寸 (s0 / 原分辨率) URL
+ */
+export function getHighResGoogleImageUrl(url: string): string {
+  if (!url || !url.includes('googleusercontent.com')) return url;
+
+  try {
+    const urlObj = new URL(url);
+    // 检查 pathname 中是否已经带有尺寸修饰符 (如 =s512, =w120-h120, =s96 等)
+    if (/=[swh]\d+/i.test(urlObj.pathname)) {
+      urlObj.pathname = urlObj.pathname.replace(/=[swh]\d+[^/]*/i, '=s0');
+      return urlObj.toString();
+    }
+
+    // 若无尺寸修饰符，在 pathname 末尾追加 =s0 (全尺寸无损原图)
+    if (!urlObj.pathname.endsWith('=s0')) {
+      urlObj.pathname = `${urlObj.pathname}=s0`;
+      return urlObj.toString();
+    }
+  } catch {
+    if (url.includes('=')) {
+      return url.replace(/=[swh]\d+[^?&]*/i, '=s0');
+    }
+  }
+
+  return url;
+}

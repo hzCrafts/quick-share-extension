@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { PostData } from '@/types/post';
 import { type CardRenderOptions, type CardThemeId, PRESET_THEMES } from '@/types/theme';
 import ShareCard from '@/components/card/ShareCard.vue';
 import { domToBlob } from 'modern-screenshot';
+import { sanitizeDomForScreenshot, copyCardToClipboard, downloadCardAsPng } from '@/utils/exporter';
 import { 
   X, 
   Copy, 
@@ -24,14 +25,23 @@ import {
   Link2
 } from 'lucide-vue-next';
 
-const props = defineProps<{
-  post: PostData;
-  visible: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    post: PostData | null;
+    visible: boolean;
+    isExtracting?: boolean;
+  }>(),
+  {
+    isExtracting: false,
+  }
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
 }>();
+
+const isAiPlatform = computed(() => props.post?.platform === 'chatgpt' || props.post?.platform === 'gemini');
+const platformName = computed(() => props.post?.platform ? props.post.platform.toUpperCase() : '网页');
 
 // 离屏渲染与视口引用
 const offscreenCardRef = ref<HTMLElement | null>(null);
@@ -75,22 +85,30 @@ const copySuccess = ref(false);
 const copyUrlSuccess = ref(false);
 
 /**
- * 触发离屏真实 DOM 渲染为 2.5x 高清图片
+ * 触发离屏真实 DOM 高清预览渲染 (2.5x Retina 超高清输出)
  */
 let renderTimer: any = null;
+const previewScale = 2.5;
+
 const triggerRender = () => {
   if (renderTimer) clearTimeout(renderTimer);
+  if (!props.post) return;
   isRendering.value = true;
   renderTimer = setTimeout(async () => {
     if (!offscreenCardRef.value) return;
     try {
       await nextTick();
-      await new Promise((r) => setTimeout(r, 120));
+      // 让出事件循环主线程，确保 Loading 动画即时平滑绘制
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 16)));
+
+      // 净化待导出 DOM，避免 CSS 语法报错
+      sanitizeDomForScreenshot(offscreenCardRef.value);
 
       const blob = await domToBlob(offscreenCardRef.value, {
-        scale: 2.5,
-        quality: 0.98,
+        scale: previewScale,
+        quality: 0.95,
         type: 'image/png',
+        font: false, // 禁用全站外部超大字体嵌入，极大提升渲染速度
         features: {
           removeControlCharacter: true,
         },
@@ -102,21 +120,34 @@ const triggerRender = () => {
         }
         previewBlob.value = blob;
         const url = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          imageNaturalWidth.value = img.naturalWidth / 2.5;
-          imageNaturalHeight.value = img.naturalHeight / 2.5;
-          previewDataUrl.value = url;
-          isRendering.value = false;
-          nextTick(resetToFit);
-        };
-        img.src = url;
+        
+        // 优先使用非阻塞异步解码 API (createImageBitmap)，避免主线程卡顿
+        try {
+          const bitmap = await createImageBitmap(blob);
+          imageNaturalWidth.value = bitmap.width / previewScale;
+          imageNaturalHeight.value = bitmap.height / previewScale;
+          bitmap.close();
+        } catch {
+          const img = new Image();
+          await new Promise<void>((resolve) => {
+            img.onload = () => {
+              imageNaturalWidth.value = img.naturalWidth / previewScale;
+              imageNaturalHeight.value = img.naturalHeight / previewScale;
+              resolve();
+            };
+            img.src = url;
+          });
+        }
+
+        previewDataUrl.value = url;
+        isRendering.value = false;
+        nextTick(resetToFit);
       }
     } catch (err) {
       console.error('[QuickShare] Render failed:', err);
       isRendering.value = false;
     }
-  }, 100);
+  }, 40);
 };
 
 /**
@@ -241,7 +272,7 @@ const setOriginalSize = () => {
 
 // 复制链接
 const handleCopyUrl = async () => {
-  if (!props.post.url) return;
+  if (!props.post?.url) return;
   try {
     await navigator.clipboard.writeText(props.post.url);
     copyUrlSuccess.value = true;
@@ -253,45 +284,35 @@ const handleCopyUrl = async () => {
   }
 };
 
-// 复制图片
+// 复制 2.5x 高清图片到剪切板
 const handleCopy = async () => {
-  if (!previewBlob.value) {
-    alert('图片正在渲染中，请稍候...');
-    return;
-  }
+  if (!offscreenCardRef.value) return;
   try {
     isCopying.value = true;
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        'image/png': previewBlob.value,
-      }),
-    ]);
+    await copyCardToClipboard(offscreenCardRef.value, { scale: 2.5, quality: 0.98 });
     copySuccess.value = true;
     setTimeout(() => {
       copySuccess.value = false;
     }, 2000);
   } catch (err) {
     console.error('[QuickShare] 复制失败:', err);
-    alert('复制到剪切板失败，请尝试直接下载 PNG');
+    alert('复制图片到剪切板失败，请尝试直接下载 PNG');
   } finally {
     isCopying.value = false;
   }
 };
 
-// 下载 PNG
+// 下载 2.5x 高清 PNG 图片
 const handleDownload = async () => {
-  if (!previewBlob.value) {
-    alert('图片正在渲染中，请稍候...');
-    return;
-  }
+  if (!offscreenCardRef.value) return;
   try {
     isDownloading.value = true;
-    const url = URL.createObjectURL(previewBlob.value);
-    const link = document.createElement('a');
-    link.download = `quick-share-${props.post.platform}-${Date.now()}.png`;
-    link.href = url;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const platform = props.post?.platform || 'share';
+    await downloadCardAsPng(
+      offscreenCardRef.value,
+      `quick-share-${platform}-${Date.now()}.png`,
+      { scale: 2.5, quality: 0.98 }
+    );
   } catch (err) {
     console.error('[QuickShare] 下载失败:', err);
     alert('下载图片失败');
@@ -307,7 +328,9 @@ const selectTheme = (themeId: CardThemeId) => {
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
-  triggerRender();
+  if (props.post) {
+    triggerRender();
+  }
   if (viewportRef.value) {
     resizeObserver = new ResizeObserver(() => {
       resetToFit();
@@ -338,7 +361,9 @@ watch(
     () => props.post,
   ],
   () => {
-    triggerRender();
+    if (props.post) {
+      triggerRender();
+    }
   }
 );
 </script>
@@ -351,6 +376,7 @@ watch(
   >
     <!-- 离屏真实未缩放渲染源 (固定标准 640px 物理排版宽度) -->
     <div
+      v-if="post"
       class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1]"
       aria-hidden="true"
     >
@@ -374,7 +400,7 @@ watch(
           </div>
           <div>
             <h2 class="text-base font-bold text-slate-900 leading-none">QuickShare</h2>
-            <p class="text-xs text-slate-400 mt-1">从 {{ post.platform.toUpperCase() }} 提取内容并高清渲染</p>
+            <p class="text-xs text-slate-400 mt-1">从 {{ platformName }} 提取内容并高清渲染</p>
           </div>
         </div>
 
@@ -480,13 +506,15 @@ watch(
             滚轮上下平移 • Shift+滚轮左右 • Meta+滚轮缩放
           </div>
 
-          <!-- Loading 状态 -->
+          <!-- Loading 状态 (包含数据提取与离屏高清渲染) -->
           <div
-            v-if="isRendering && !previewDataUrl"
-            class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm text-slate-600 gap-2"
+            v-if="(!post || isExtracting || isRendering) && !previewDataUrl"
+            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm text-slate-700 gap-2.5 transition-opacity"
           >
-            <Loader2 class="w-8 h-8 animate-spin text-sky-600" />
-            <span class="text-xs font-medium">正在生成高清卡片...</span>
+            <Loader2 class="w-8 h-8 animate-spin text-sky-600 will-change-transform" />
+            <span class="text-xs font-semibold tracking-wide">
+              {{ !post || isExtracting ? '正在解析内容与高清资源...' : '正在生成高清卡片...' }}
+            </span>
           </div>
 
           <!-- 纯图片渲染层 -->
@@ -514,14 +542,16 @@ watch(
       <!-- Footer: 操作栏 -->
       <div class="px-6 py-3.5 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
         <span class="text-xs text-slate-400">
-          已就绪 • 2.5x Retina 超高清完整长图导出
+          {{ !post || isExtracting || isRendering ? '处理中 • 请稍候...' : '已就绪 • 2.5x Retina 超高清完整长图导出' }}
         </span>
 
         <div class="flex items-center gap-3">
-          <!-- 复制链接按钮 -->
+          <!-- 复制链接按钮 (非私有 AI 平台且有 URL 时展示) -->
           <button
+            v-if="!isAiPlatform && post && post.url"
             @click="handleCopyUrl"
-            class="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+            :disabled="!post || isExtracting || isRendering"
+            class="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             <Check v-if="copyUrlSuccess" class="w-4 h-4 text-emerald-500" />
             <Link2 v-else class="w-4 h-4 text-slate-500" />
@@ -531,7 +561,7 @@ watch(
           <!-- 复制图片按钮 -->
           <button
             @click="handleCopy"
-            :disabled="isCopying || isRendering"
+            :disabled="!post || isExtracting || isRendering || isCopying"
             class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Check v-if="copySuccess" class="w-4 h-4 text-emerald-500" />
@@ -543,7 +573,7 @@ watch(
           <!-- 下载 PNG 按钮 -->
           <button
             @click="handleDownload"
-            :disabled="isDownloading || isRendering"
+            :disabled="!post || isExtracting || isRendering || isDownloading"
             class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-sm font-semibold shadow-md shadow-sky-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Loader2 v-if="isDownloading" class="w-4 h-4 animate-spin" />

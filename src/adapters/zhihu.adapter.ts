@@ -79,11 +79,14 @@ export class ZhihuAdapter extends BaseAdapter {
       wrapper.style.alignItems = 'center';
       wrapper.style.marginLeft = '12px';
 
-      const btn = this.createShareButton(async () => {
-        await this.ensureExpanded(item);
-        const postData = await this.extract(item);
-        if (postData && this.onShareCallback) {
-          this.onShareCallback(postData);
+      const btn = this.createShareButton(() => {
+        if (this.onShareCallback) {
+          this.onShareCallback(
+            (async () => {
+              await this.ensureExpanded(item);
+              return this.extract(item);
+            })()
+          );
         }
       }, 'QuickShare');
 
@@ -118,10 +121,9 @@ export class ZhihuAdapter extends BaseAdapter {
       wrapper.className = 'quick-share-zhihu-wrapper';
       wrapper.style.margin = '12px 0';
 
-      const btn = this.createShareButton(async () => {
-        const postData = await this.extractArticle();
-        if (postData && this.onShareCallback) {
-          this.onShareCallback(postData);
+      const btn = this.createShareButton(() => {
+        if (this.onShareCallback) {
+          this.onShareCallback(this.extractArticle());
         }
       }, 'QuickShare');
 

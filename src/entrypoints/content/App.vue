@@ -5,14 +5,38 @@ import ShareModal from '@/components/modal/ShareModal.vue';
 
 const currentPost = ref<PostData | null>(null);
 const isModalVisible = ref(false);
+const isExtracting = ref(false);
 
-const openShareModal = (post: PostData) => {
-  currentPost.value = post;
+const openShareModal = (postOrPromise: PostData | Promise<PostData | null>) => {
   isModalVisible.value = true;
+  if (postOrPromise instanceof Promise) {
+    currentPost.value = null;
+    isExtracting.value = true;
+    postOrPromise
+      .then((post) => {
+        if (post && isModalVisible.value) {
+          currentPost.value = post;
+        } else if (!post) {
+          isModalVisible.value = false;
+        }
+      })
+      .catch((err) => {
+        console.error('[QuickShare] Extract failed:', err);
+        isModalVisible.value = false;
+      })
+      .finally(() => {
+        isExtracting.value = false;
+      });
+  } else {
+    currentPost.value = postOrPromise;
+    isExtracting.value = false;
+  }
 };
 
 const closeModal = () => {
   isModalVisible.value = false;
+  currentPost.value = null;
+  isExtracting.value = false;
 };
 
 // 划词悬浮按钮状态与控制
@@ -73,8 +97,9 @@ defineExpose({
     </div>
 
     <ShareModal
-      v-if="currentPost && isModalVisible"
+      v-if="isModalVisible"
       :post="currentPost"
+      :is-extracting="isExtracting"
       :visible="isModalVisible"
       @close="closeModal"
     />

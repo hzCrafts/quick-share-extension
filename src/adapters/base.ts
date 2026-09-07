@@ -1,6 +1,6 @@
 import type { PostData, PlatformType } from '@/types/post';
 
-export type OnShareTrigger = (post: PostData) => void;
+export type OnShareTrigger = (post: PostData | Promise<PostData | null>) => void;
 
 export interface ExcerptSelection {
   selectedText: string;

@@ -11,6 +11,12 @@ export default defineContentScript({
     '*://*.twitter.com/*',
     '*://*.zhihu.com/*',
     '*://zhihu.com/*',
+    '*://chatgpt.com/*',
+    '*://*.chatgpt.com/*',
+    '*://chat.openai.com/*',
+    '*://*.chat.openai.com/*',
+    '*://gemini.google.com/*',
+    '*://*.gemini.google.com/*',
   ],
   cssInjectionMode: 'ui',
 
@@ -253,10 +259,10 @@ export default defineContentScript({
         const x = rect.left + rect.width / 2;
         const y = rect.top > 45 ? rect.top - 8 : rect.bottom + 36;
 
-        appInstance.showFloatingButton?.(x, y, async () => {
-          const postData = await processSelection(entityEl, selection);
-          if (postData && appInstance && ctx.isValid) {
-            appInstance.openShareModal(postData);
+        appInstance.showFloatingButton?.(x, y, () => {
+          const postPromise = processSelection(entityEl, selection);
+          if (appInstance && ctx.isValid) {
+            appInstance.openShareModal(postPromise);
           }
         });
       }
@@ -285,7 +291,7 @@ export default defineContentScript({
     // 监听右键划选分享消息
     try {
       if (browser.runtime?.onMessage) {
-        const onMessageListener = async (message: unknown) => {
+        const onMessageListener = (message: unknown) => {
           if (!ctx.isValid) return;
           if (typeof message === 'object' && message !== null && 'type' in message) {
             const msg = message as { type: string; selectionText?: string };
@@ -297,9 +303,9 @@ export default defineContentScript({
               const entityEl = adapter.findEntityFromNode(targetNode);
               if (!entityEl || !selection) return;
 
-              const postData = await processSelection(entityEl, selection);
-              if (postData && appInstance && ctx.isValid) {
-                appInstance.openShareModal(postData);
+              const postPromise = processSelection(entityEl, selection);
+              if (appInstance && ctx.isValid) {
+                appInstance.openShareModal(postPromise);
               }
             }
           }

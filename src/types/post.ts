@@ -1,4 +1,4 @@
-export type PlatformType = 'x' | 'zhihu' | 'jike' | 'weibo' | 'universal';
+export type PlatformType = 'x' | 'zhihu' | 'chatgpt' | 'gemini' | 'jike' | 'weibo' | 'universal';
 
 export interface PostAuthor {
   name: string;
@@ -18,6 +18,7 @@ export interface PostData {
   url: string;
   author: PostAuthor;
   title?: string;
+  promptHtml?: string;
   content: string;
   contentHtml?: string;
   isExcerpt?: boolean;

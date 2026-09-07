@@ -38,6 +38,8 @@ quick-share-extension/
 │   │   ├── base.ts            # BaseAdapter 抽象基类与 ExcerptSelection 接口
 │   │   ├── x.adapter.ts       # X (Twitter) 适配器
 │   │   ├── zhihu.adapter.ts   # 知乎（问答 / 专栏）适配器
+│   │   ├── chatgpt.adapter.ts # ChatGPT 对话单轮卡片化适配器
+│   │   ├── gemini.adapter.ts  # Google Gemini 对话单轮卡片化适配器
 │   │   └── index.ts           # 适配器注册表与匹配路由器
 │   ├── assets/
 │   │   └── style.css          # 全局样式与 Tailwind 指令

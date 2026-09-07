@@ -27,6 +27,18 @@ const platformConfig = computed(() => {
         faviconUrl: 'https://abs.twimg.com/favicons/twitter.3.ico',
         badgeBg: 'bg-black/10 dark:bg-white/15 text-current',
       };
+    case 'chatgpt':
+      return {
+        name: 'ChatGPT',
+        faviconUrl: 'https://chatgpt.com/favicon.ico',
+        badgeBg: 'bg-black/10 dark:bg-white/15 text-current',
+      };
+    case 'gemini':
+      return {
+        name: 'Gemini',
+        faviconUrl: 'https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png',
+        badgeBg: 'bg-[#1a73e8]/10 text-[#1a73e8] dark:bg-[#1a73e8]/20',
+      };
     case 'weibo':
       return {
         name: '微博',
@@ -55,6 +67,8 @@ const platformConfig = computed(() => {
     }
   }
 });
+
+const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.post.platform === 'gemini');
 </script>
 
 <template>
@@ -131,11 +145,40 @@ const platformConfig = computed(() => {
       </div>
 
       <!-- Content: 标题（如有）与正文/图文流 -->
-      <div class="space-y-3 mb-6 w-full break-words">
-        <!-- 标题 -->
+      <div class="mb-6 w-full break-words">
+        <!-- 1. AI 对话场景：用户提问 Prompt (优雅自适应毛玻璃背景 + 边框 + 左右与正文完全对齐) -->
+        <div
+          v-if="isAiPlatform && (post.title || post.promptHtml)"
+          class="mb-6 w-full rounded-2xl p-4 bg-slate-500/10 dark:bg-white/10 backdrop-blur-md border border-black/10 dark:border-white/15 shadow-sm box-border"
+        >
+          <div
+            class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1.5"
+            :class="currentTheme.subtextClass"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
+            Prompt
+          </div>
+          <!-- 富文本 Prompt (支持原样文本、全宽高清图片与文件卡片) -->
+          <div
+            v-if="post.promptHtml"
+            class="quick-share-prompt-body text-[14.5px] font-semibold leading-relaxed break-words"
+            :class="currentTheme.textClass"
+            v-html="post.promptHtml"
+          />
+          <!-- 纯文本 Prompt 兜底 -->
+          <div
+            v-else
+            class="text-[14.5px] font-semibold leading-relaxed break-words"
+            :class="currentTheme.textClass"
+          >
+            {{ post.title }}
+          </div>
+        </div>
+
+        <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
         <h3
-          v-if="post.title"
-          class="font-extrabold text-xl leading-snug tracking-tight mb-3 break-words"
+          v-else-if="post.title"
+          class="font-extrabold text-xl leading-snug tracking-tight mb-4 break-words"
           :class="currentTheme.textClass"
         >
           {{ post.title }}
@@ -233,9 +276,9 @@ const platformConfig = computed(() => {
         :class="currentTheme.subtextClass"
       >
         <div class="space-y-1 min-w-0 flex-1 pr-2">
-          <!-- 干净清晰的 URL 链接（便于 OCR 与直接点击） -->
+          <!-- 干净清晰的 URL 链接（非私有 AI 对话时展示，便于 OCR 与直接点击） -->
           <div
-            v-if="post.url"
+            v-if="post.url && !isAiPlatform"
             class="font-mono text-[11px] leading-tight break-all opacity-80 select-all"
           >
             {{ post.url }}
@@ -333,7 +376,14 @@ const platformConfig = computed(() => {
 :deep(.quick-share-excerpt-top-fade img),
 :deep(.quick-share-excerpt-bottom-fade img),
 :deep(.quick-share-excerpt-top-fade button),
-:deep(.quick-share-excerpt-bottom-fade button) {
+:deep(.quick-share-excerpt-bottom-fade button),
+:deep(.cdk-visually-hidden),
+:deep(.visually-hidden),
+:deep(.sr-only),
+:deep([class*="visually-hidden"]),
+:deep([class*="screen-reader"]),
+:deep(.model-response-header),
+:deep([class*="model-response-header"]) {
   display: none !important;
 }
 
@@ -345,11 +395,16 @@ const platformConfig = computed(() => {
 
 :deep(.quick-share-rich-body blockquote) {
   padding: 8px 16px;
-  margin: 12px 0;
-  border-left: 3px solid rgba(14, 165, 233, 0.6);
-  background-color: rgba(0, 0, 0, 0.03);
+  margin-top: 14px;
+  margin-bottom: 14px;
+  border-left: 3px solid currentColor;
+  background-color: rgba(120, 120, 120, 0.08);
   border-radius: 0 8px 8px 0;
   opacity: 0.9;
+}
+
+:deep(.quick-share-rich-body blockquote p:last-child) {
+  margin-bottom: 0;
 }
 
 :deep(.quick-share-rich-body .quick-share-rich-img) {
@@ -375,6 +430,14 @@ const platformConfig = computed(() => {
   margin: 0.8em 0;
 }
 
+:deep(.quick-share-rich-body li) {
+  margin-bottom: 0.45em;
+}
+
+:deep(.quick-share-rich-body li > p) {
+  margin-bottom: 0.35em;
+}
+
 :deep(.quick-share-rich-body h2),
 :deep(.quick-share-rich-body h3) {
   font-weight: 700;
@@ -382,9 +445,16 @@ const platformConfig = computed(() => {
   margin-bottom: 0.5em;
 }
 
+:deep(.quick-share-rich-body a) {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  opacity: 0.85;
+}
+
 :deep(.quick-share-rich-body pre),
 :deep(.quick-share-rich-body code) {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(128, 128, 128, 0.12);
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -397,5 +467,95 @@ const platformConfig = computed(() => {
 
 :deep(.quick-share-rich-body code) {
   padding: 2px 4px;
+}
+
+/* 表格排版与边框美化 */
+:deep(.quick-share-rich-body table) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 14px 0;
+  font-size: 0.88em;
+  line-height: 1.55;
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:deep(.quick-share-rich-body th),
+:deep(.quick-share-rich-body td) {
+  border-right: 1px solid rgba(120, 120, 120, 0.25);
+  border-bottom: 1px solid rgba(120, 120, 120, 0.25);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+:deep(.quick-share-rich-body th:last-child),
+:deep(.quick-share-rich-body td:last-child) {
+  border-right: none;
+}
+
+:deep(.quick-share-rich-body tr:last-child td) {
+  border-bottom: none;
+}
+
+:deep(.quick-share-rich-body th) {
+  background-color: rgba(120, 120, 120, 0.12);
+  font-weight: 700;
+}
+
+:deep(.quick-share-rich-body tr:nth-child(even)) {
+  background-color: rgba(120, 120, 120, 0.04);
+}
+
+/* Prompt 内部图片与文件附件排版 (图片全宽、自适应高度清晰呈现，文件卡片保真) */
+:deep(.quick-share-prompt-body p) {
+  margin-bottom: 0.5em;
+}
+
+:deep(.quick-share-prompt-body p:last-child) {
+  margin-bottom: 0;
+}
+
+:deep(.quick-share-prompt-body .quick-share-prompt-img),
+:deep(.quick-share-prompt-body img) {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  border-radius: 12px;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+:deep(.quick-share-prompt-body .quick-share-prompt-file-chip),
+:deep(.quick-share-prompt-body mat-card),
+:deep(.quick-share-prompt-body [class*="file-preview"]),
+:deep(.quick-share-prompt-body [class*="attachment-preview"]),
+:deep(.quick-share-prompt-body [class*="file-chip"]) {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background-color: rgba(128, 128, 128, 0.12);
+  border: 1px solid rgba(128, 128, 128, 0.18);
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+:deep(.quick-share-prompt-body [class*="file-icon"]),
+:deep(.quick-share-prompt-body mat-icon) {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  opacity: 0.85;
 }
 </style>

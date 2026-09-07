@@ -65,12 +65,14 @@ export class XAdapter extends BaseAdapter {
       wrapper.style.padding = '0 6px';
       wrapper.style.color = 'rgb(113, 118, 123)';
 
-      const btn = this.createShareButton(async () => {
-        // 1. 确保长推文「显示更多」被点击并展开全文
-        await this.ensureExpanded(tweet);
-        const postData = await this.extract(tweet);
-        if (postData && this.onShareCallback) {
-          this.onShareCallback(postData);
+      const btn = this.createShareButton(() => {
+        if (this.onShareCallback) {
+          this.onShareCallback(
+            (async () => {
+              await this.ensureExpanded(tweet);
+              return this.extract(tweet);
+            })()
+          );
         }
       }, 'QuickShare');
 

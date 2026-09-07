@@ -6,7 +6,7 @@
 
 - 🚀 **现代技术栈**：基于 [WXT (Next-Gen Web Extension Framework)](https://wxt.dev/) + Vue 3 (`<script setup>`) + TypeScript + Tailwind CSS 构建。
 - 🛡️ **Shadow DOM 样式隔离**：弹窗与操作浮层渲染在 Shadow DOM 内部，与宿主站点的 CSS 100% 隔离，杜绝样式污染。
-- 🧩 **高扩展 Adapter 架构**：模块化站点适配器设计，支持快速接入 X (Twitter)、知乎（问答/专栏/文章）、小红书、即刻等任意站点。
+- 🧩 **高扩展 Adapter 架构**：模块化站点适配器设计，支持快速接入 X (Twitter)、知乎（问答/专栏/文章）、ChatGPT、Google Gemini 等任意站点。
 - 🎨 **精美预设主题**：内置 7 种风格迥异的卡片主题（落日余晖、蔚蓝深海、极光冷调、曜石深黑、纯净极简、暖雅宣纸、毛玻璃）。
 - ⚙️ **丰富定制选项**：支持外层间距、字体缩放、原文二维码生成、品牌水印、作者头像圆角等灵活配置。
 - 📸 **高清图片导出**：基于 `modern-screenshot` 生成高分辨率（2x/3x Retina）PNG 图片，支持直接复制到系统剪切板与一键下载。
@@ -32,6 +32,8 @@ src/
 │   ├── base.ts             # BaseAdapter 抽象基类与 ExcerptSelection
 │   ├── x.adapter.ts        # X (Twitter) 适配器
 │   ├── zhihu.adapter.ts    # 知乎问答与专栏文章适配器
+│   ├── chatgpt.adapter.ts  # ChatGPT 对话单轮卡片化适配器
+│   ├── gemini.adapter.ts   # Google Gemini 对话单轮卡片化适配器
 │   └── index.ts            # 适配器注册与匹配中心
 ├── assets/                 # 样式与静态资源
 │   └── style.css           # Tailwind 基础与卡片排版样式
