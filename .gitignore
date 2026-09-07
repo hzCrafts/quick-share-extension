@@ -1,0 +1,20 @@
+# Build output
+.output
+.wxt
+dist
+
+# Node dependencies
+node_modules
+pnpm-lock.yaml
+
+# OS & IDE files
+.DS_Store
+*.local
+.idea/
+.vscode/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
