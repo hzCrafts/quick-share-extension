@@ -137,7 +137,7 @@ export function sanitizeDomForScreenshot(root: HTMLElement): void {
 }
 
 /**
- * 净化 HTML 片段中的非标准 SVG/ID 引用
+ * 净化 HTML 片段中的非标准 SVG/ID 引用与冲突的暗色/行内颜色样式
  */
 export function sanitizeHtmlForCard(html: string): string {
   if (!html) return '';
@@ -145,6 +145,37 @@ export function sanitizeHtmlForCard(html: string): string {
     const temp = document.createElement('div');
     temp.innerHTML = html;
     sanitizeDomForScreenshot(temp);
+
+    // 清洗可能污染卡片主题的外部暗色/行内颜色属性
+    temp.querySelectorAll('*').forEach((el) => {
+      const isInsideCode = el.closest('pre, code');
+      if (!isInsideCode) {
+        // 清理 class 中包含的 dark、prose-invert 等破坏性类
+        if (el.className && typeof el.className === 'string') {
+          const cleanedClasses = el.className
+            .split(/\s+/)
+            .filter((c) => !c.startsWith('dark:') && !c.includes('prose-invert') && c !== 'dark')
+            .join(' ');
+          if (cleanedClasses) {
+            el.className = cleanedClasses;
+          } else {
+            el.removeAttribute('class');
+          }
+        }
+
+        // 清除行内硬编码的 color 与 background 避免覆盖卡片当前主题
+        const style = el.getAttribute('style');
+        if (style) {
+          (el as HTMLElement).style.removeProperty('color');
+          (el as HTMLElement).style.removeProperty('background-color');
+          (el as HTMLElement).style.removeProperty('background');
+          if (!el.getAttribute('style')) {
+            el.removeAttribute('style');
+          }
+        }
+      }
+    });
+
     return temp.innerHTML;
   } catch {
     return html;

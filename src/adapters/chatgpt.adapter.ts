@@ -354,6 +354,6 @@ export class ChatGPTAdapter extends BaseAdapter {
     // 净化以数字开头的非法 ID，避免 querySelector 报错
     sanitizeDomForScreenshot(clone);
 
-    return clone.innerHTML;
+    return sanitizeHtmlForCard(clone.innerHTML);
   }
 }

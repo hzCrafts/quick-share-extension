@@ -434,7 +434,7 @@ watch(
                     : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
                 ]"
               >
-                <div class="h-3.5 w-full rounded-md shadow-inner" :class="theme.backgroundClass" />
+                <div class="h-3.5 w-full rounded-md shadow-inner" :style="{ background: theme.tokens.outerBackground }" />
                 <span class="truncate text-[11px]">{{ theme.name }}</span>
               </button>
             </div>

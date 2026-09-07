@@ -366,6 +366,6 @@ export class GeminiAdapter extends BaseAdapter {
     // 净化以数字开头的非法 ID，内联/移除 <use> 避免 querySelector 报错
     sanitizeDomForScreenshot(clone);
 
-    return clone.innerHTML;
+    return sanitizeHtmlForCard(clone.innerHTML);
   }
 }

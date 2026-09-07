@@ -12,44 +12,104 @@ const currentTheme = computed(() => {
   return PRESET_THEMES[props.options.themeId] || PRESET_THEMES['gradient-sunset'];
 });
 
-// 平台显示与 Favicon 规范
+// 计算卡片专属 CSS 变量字典
+const themeCssVars = computed(() => {
+  const t = currentTheme.value.tokens;
+  const isSerif = t.fontFamily === 'serif';
+  return {
+    '--qs-outer-bg': t.outerBackground,
+    '--qs-card-bg': t.cardBackground,
+    '--qs-card-backdrop-filter': t.cardBackdropFilter,
+    '--qs-card-border': t.cardBorder,
+    '--qs-card-shadow': t.cardShadow,
+    '--qs-text-primary': t.textPrimary,
+    '--qs-text-secondary': t.textSecondary,
+    '--qs-prompt-bg': t.promptBg,
+    '--qs-prompt-border': t.promptBorder,
+    '--qs-quote-bg': t.quoteBg,
+    '--qs-quote-border': t.quoteBorder,
+    '--qs-code-bg': t.codeBg,
+    '--qs-code-text': t.codeText,
+    '--qs-table-border': t.tableBorder,
+    '--qs-table-header-bg': t.tableHeaderBg,
+    '--qs-table-row-even-bg': t.tableRowEvenBg,
+    '--qs-font-family': isSerif
+      ? "Charter, Georgia, Cambria, 'Times New Roman', Times, serif"
+      : "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    '--qs-padding': `${props.options.padding}px`,
+    '--qs-card-radius': `${props.options.cardRadius}px`,
+  };
+});
+
+const avatarRadiusStyle = computed(() => {
+  switch (props.options.authorAvatarRadius) {
+    case 'rounded-full':
+      return { borderRadius: '9999px' };
+    case 'rounded-xl':
+      return { borderRadius: '12px' };
+    case 'rounded-none':
+    default:
+      return { borderRadius: '0px' };
+  }
+});
+
+// 平台显示与 Favicon 规范 (基于主题 isDark 与品牌色自动计算，无 Tailwind dark: 依赖)
 const platformConfig = computed(() => {
+  const isDark = currentTheme.value.tokens.isDark;
   switch (props.post.platform) {
     case 'zhihu':
       return {
         name: '知乎',
         faviconUrl: 'https://static.zhihu.com/heifetz/favicon.ico',
-        badgeBg: 'bg-[#0066ff]/10 text-[#0066ff]',
+        style: {
+          backgroundColor: isDark ? 'rgba(0, 102, 255, 0.22)' : 'rgba(0, 102, 255, 0.10)',
+          color: isDark ? '#60a5fa' : '#0066ff',
+        },
       };
     case 'x':
       return {
         name: 'X',
         faviconUrl: 'https://abs.twimg.com/favicons/twitter.3.ico',
-        badgeBg: 'bg-black/10 dark:bg-white/15 text-current',
+        style: {
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+          color: isDark ? '#ffffff' : '#0f172a',
+        },
       };
     case 'chatgpt':
       return {
         name: 'ChatGPT',
         faviconUrl: 'https://chatgpt.com/favicon.ico',
-        badgeBg: 'bg-black/10 dark:bg-white/15 text-current',
+        style: {
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+          color: isDark ? '#ffffff' : '#0f172a',
+        },
       };
     case 'gemini':
       return {
         name: 'Gemini',
         faviconUrl: 'https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png',
-        badgeBg: 'bg-[#1a73e8]/10 text-[#1a73e8] dark:bg-[#1a73e8]/20',
+        style: {
+          backgroundColor: isDark ? 'rgba(26, 115, 232, 0.25)' : 'rgba(26, 115, 232, 0.10)',
+          color: isDark ? '#93c5fd' : '#1a73e8',
+        },
       };
     case 'weibo':
       return {
         name: '微博',
         faviconUrl: 'https://weibo.com/favicon.ico',
-        badgeBg: 'bg-[#e6162d]/10 text-[#e6162d]',
+        style: {
+          backgroundColor: isDark ? 'rgba(230, 22, 45, 0.22)' : 'rgba(230, 22, 45, 0.10)',
+          color: isDark ? '#f87171' : '#e6162d',
+        },
       };
     case 'jike':
       return {
         name: '即刻',
         faviconUrl: 'https://web.okjike.com/favicon.ico',
-        badgeBg: 'bg-[#ffe411]/20 text-[#333]',
+        style: {
+          backgroundColor: isDark ? 'rgba(255, 228, 17, 0.25)' : 'rgba(255, 228, 17, 0.20)',
+          color: isDark ? '#fef08a' : '#333333',
+        },
       };
     default: {
       let hostFavicon = '';
@@ -62,7 +122,10 @@ const platformConfig = computed(() => {
       return {
         name: '网页',
         faviconUrl: hostFavicon,
-        badgeBg: 'bg-slate-500/10 text-slate-600',
+        style: {
+          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(100, 116, 139, 0.10)',
+          color: isDark ? '#cbd5e1' : '#475569',
+        },
       };
     }
   }
@@ -73,70 +136,53 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
 <template>
   <div
-    class="relative overflow-hidden transition-all duration-300 select-text box-border max-w-[640px] w-[640px]"
-    :class="[
-      currentTheme.backgroundClass,
-      currentTheme.fontFamily === 'serif' ? 'font-serif-card' : 'font-sans-card'
-    ]"
-    :style="{
-      padding: `${options.padding}px`,
-    }"
+    class="qs-card-wrapper"
+    :style="themeCssVars"
   >
     <!-- 卡片主体容器 -->
-    <div
-      class="rounded-2xl transition-all duration-300 overflow-hidden flex flex-col justify-between box-border w-full"
-      :class="[
-        currentTheme.cardClass,
-        currentTheme.borderClass,
-      ]"
-      :style="{
-        borderRadius: `${options.cardRadius}px`,
-        padding: '28px',
-      }"
-    >
-      <!-- Header: 作者信息 & 站点 Favicon 标识 (无分割线) -->
-      <div class="flex items-center justify-between gap-3 mb-5 w-full">
-        <div class="flex items-center gap-3 min-w-0 flex-1">
+    <div class="qs-card-inner">
+      <!-- Header: 作者信息 & 站点 Favicon 标识 -->
+      <div class="qs-card-header">
+        <div class="qs-author-box">
           <img
             v-if="post.author.avatarUrl"
             :src="post.author.avatarUrl"
             alt="avatar"
-            class="w-11 h-11 object-cover shrink-0 shadow-sm border border-black/5"
-            :class="options.authorAvatarRadius"
+            class="qs-avatar-img"
+            :style="avatarRadiusStyle"
             crossorigin="anonymous"
           />
           <div
             v-else
-            class="w-11 h-11 shrink-0 flex items-center justify-center bg-sky-500 text-white font-bold text-lg"
-            :class="options.authorAvatarRadius"
+            class="qs-avatar-fallback"
+            :style="avatarRadiusStyle"
           >
             {{ post.author.name.slice(0, 1) }}
           </div>
 
-          <div class="min-w-0 flex-1">
-            <div class="font-bold text-base leading-snug truncate" :class="currentTheme.textClass">
+          <div class="qs-author-meta">
+            <div class="qs-author-name">
               {{ post.author.name }}
             </div>
             <div
               v-if="post.author.handle"
-              class="text-xs truncate opacity-75 mt-0.5"
-              :class="currentTheme.subtextClass"
+              class="qs-author-handle"
             >
               {{ post.author.handle }}
             </div>
           </div>
         </div>
 
-        <!-- 平台 Favicon Badge (无 border) -->
+        <!-- 平台 Favicon Badge -->
         <div
-          class="shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide flex items-center gap-1.5"
-          :class="platformConfig.badgeBg"
+          class="qs-platform-badge"
+          :style="platformConfig.style"
         >
           <img
             v-if="platformConfig.faviconUrl"
             :src="platformConfig.faviconUrl"
             alt="icon"
-            class="w-3.5 h-3.5 object-contain"
+            class="qs-platform-icon"
             crossorigin="anonymous"
             @error="(e: any) => e.target.style.display = 'none'"
           />
@@ -145,31 +191,26 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
       </div>
 
       <!-- Content: 标题（如有）与正文/图文流 -->
-      <div class="mb-6 w-full break-words">
-        <!-- 1. AI 对话场景：用户提问 Prompt (优雅自适应毛玻璃背景 + 边框 + 左右与正文完全对齐) -->
+      <div class="qs-card-content">
+        <!-- 1. AI 对话场景：用户提问 Prompt (纯 CSS 变量毛玻璃背景与边框) -->
         <div
           v-if="isAiPlatform && (post.title || post.promptHtml)"
-          class="mb-6 w-full rounded-2xl p-4 bg-slate-500/10 dark:bg-white/10 backdrop-blur-md border border-black/10 dark:border-white/15 shadow-sm box-border"
+          class="qs-prompt-container"
         >
-          <div
-            class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1.5"
-            :class="currentTheme.subtextClass"
-          >
-            <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
+          <div class="qs-prompt-header">
+            <span class="qs-prompt-dot"></span>
             Prompt
           </div>
           <!-- 富文本 Prompt (支持原样文本、全宽高清图片与文件卡片) -->
           <div
             v-if="post.promptHtml"
-            class="quick-share-prompt-body text-[14.5px] font-semibold leading-relaxed break-words"
-            :class="currentTheme.textClass"
+            class="quick-share-prompt-body"
             v-html="post.promptHtml"
           />
           <!-- 纯文本 Prompt 兜底 -->
           <div
             v-else
-            class="text-[14.5px] font-semibold leading-relaxed break-words"
-            :class="currentTheme.textClass"
+            class="qs-prompt-plain"
           >
             {{ post.title }}
           </div>
@@ -178,19 +219,17 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
         <h3
           v-else-if="post.title"
-          class="font-extrabold text-xl leading-snug tracking-tight mb-4 break-words"
-          :class="currentTheme.textClass"
+          class="qs-post-title"
         >
           {{ post.title }}
         </h3>
         
         <!-- 1. 划选摘录模式：保留原 DOM 格式，支持段落内水平渐变 + 段落外垂直渐变 -->
-        <div v-if="post.isExcerpt" class="w-full">
+        <div v-if="post.isExcerpt" class="qs-excerpt-wrapper">
           <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
           <div
             v-if="post.excerptBeforeHtml"
-            class="quick-share-excerpt-top-fade quick-share-rich-body select-none pointer-events-none"
-            :class="currentTheme.textClass"
+            class="quick-share-excerpt-top-fade quick-share-rich-body"
             :style="{
               fontSize: `${15 * options.fontScale}px`,
               lineHeight: 1.7,
@@ -200,8 +239,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
           <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
           <div
-            class="quick-share-rich-body leading-relaxed break-words"
-            :class="currentTheme.textClass"
+            class="quick-share-rich-body"
             :style="{
               fontSize: `${15 * options.fontScale}px`,
               lineHeight: 1.7,
@@ -212,8 +250,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
           <div
             v-if="post.excerptAfterHtml"
-            class="quick-share-excerpt-bottom-fade quick-share-rich-body select-none pointer-events-none"
-            :class="currentTheme.textClass"
+            class="quick-share-excerpt-bottom-fade quick-share-rich-body"
             :style="{
               fontSize: `${15 * options.fontScale}px`,
               lineHeight: 1.7,
@@ -227,8 +264,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           <!-- 富文本图文混排模式 -->
           <div
             v-if="post.contentHtml"
-            class="quick-share-rich-body leading-relaxed break-words"
-            :class="currentTheme.textClass"
+            class="quick-share-rich-body"
             :style="{
               fontSize: `${15 * options.fontScale}px`,
               lineHeight: 1.7,
@@ -239,8 +275,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           <!-- 纯文本模式 -->
           <p
             v-else
-            class="whitespace-pre-wrap leading-relaxed tracking-normal text-sm break-words"
-            :class="currentTheme.textClass"
+            class="qs-plain-content"
             :style="{
               fontSize: `${15 * options.fontScale}px`,
               lineHeight: 1.7,
@@ -254,36 +289,33 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
       <!-- Media: X / 纯文本模式下的图片 (100% 宽度，高度自动撑高) -->
       <div
         v-if="!post.contentHtml && post.media && post.media.length > 0"
-        class="flex flex-col gap-3 mb-6 w-full rounded-xl overflow-hidden"
+        class="qs-media-gallery"
       >
         <div
           v-for="(item, idx) in post.media"
           :key="idx"
-          class="w-full bg-black/5 overflow-hidden rounded-xl"
+          class="qs-media-item"
         >
           <img
             :src="item.url"
             alt="media"
-            class="w-full h-auto object-contain rounded-xl block mx-auto"
+            class="qs-media-img"
             crossorigin="anonymous"
           />
         </div>
       </div>
 
-      <!-- Footer: 清洗后 URL 链接与品牌水印 (纯净无二维码) -->
-      <div
-        class="pt-2 flex items-end justify-between gap-4 text-xs opacity-90 w-full"
-        :class="currentTheme.subtextClass"
-      >
-        <div class="space-y-1 min-w-0 flex-1 pr-2">
+      <!-- Footer: 清洗后 URL 链接与品牌水印 -->
+      <div class="qs-card-footer">
+        <div class="qs-footer-info">
           <!-- 干净清晰的 URL 链接（非私有 AI 对话时展示，便于 OCR 与直接点击） -->
           <div
             v-if="post.url && !isAiPlatform"
-            class="font-mono text-[11px] leading-tight break-all opacity-80 select-all"
+            class="qs-footer-url"
           >
             {{ post.url }}
           </div>
-          <div v-if="options.showWatermark" class="font-medium tracking-tight opacity-75 text-[11px]">
+          <div v-if="options.showWatermark" class="qs-footer-watermark">
             Shared via QuickShare
           </div>
         </div>
@@ -293,7 +325,192 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 </template>
 
 <style scoped>
-/* 垂直顶部前置上下文：固定高度 + 底部对齐（使紧邻选区的文字完整贴合不被截断） + 顶部完全透明渐变 */
+/* 卡片外层与包裹容器 (基于 CSS Variables) */
+.qs-card-wrapper {
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  user-select: text;
+  max-width: 640px;
+  width: 640px;
+  background: var(--qs-outer-bg);
+  font-family: var(--qs-font-family);
+  padding: var(--qs-padding);
+}
+
+/* 卡片主体 */
+.qs-card-inner {
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--qs-card-bg);
+  border: var(--qs-card-border);
+  box-shadow: var(--qs-card-shadow);
+  backdrop-filter: var(--qs-card-backdrop-filter);
+  -webkit-backdrop-filter: var(--qs-card-backdrop-filter);
+  border-radius: var(--qs-card-radius);
+  padding: 28px;
+  color: var(--qs-text-primary);
+}
+
+/* Header */
+.qs-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.qs-author-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.qs-avatar-img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.qs-avatar-fallback {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0284c7;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.qs-author-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.qs-author-name {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--qs-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qs-author-handle {
+  font-size: 12px;
+  color: var(--qs-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+/* 平台 Badge */
+.qs-platform-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qs-platform-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+/* Content */
+.qs-card-content {
+  margin-bottom: 24px;
+  width: 100%;
+  word-break: break-word;
+}
+
+.qs-post-title {
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: var(--qs-text-primary);
+  word-break: break-word;
+}
+
+/* AI Prompt 区域 */
+.qs-prompt-container {
+  margin-bottom: 24px;
+  width: 100%;
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--qs-prompt-bg);
+  border: var(--qs-prompt-border);
+  box-sizing: border-box;
+}
+
+.qs-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--qs-text-secondary);
+  margin-bottom: 6px;
+}
+
+.qs-prompt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  opacity: 0.7;
+}
+
+.qs-prompt-plain {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--qs-text-primary);
+  word-break: break-word;
+}
+
+.qs-plain-content {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  font-size: 15px;
+  color: var(--qs-text-primary);
+  word-break: break-word;
+  margin: 0;
+}
+
+/* 划选 Excerpt 上下文 */
+.qs-excerpt-wrapper {
+  width: 100%;
+}
+
 .quick-share-excerpt-top-fade {
   height: 64px;
   max-height: 64px;
@@ -317,9 +534,10 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
     rgba(0, 0, 0, 1) 100%
   );
   margin-bottom: 6px;
+  user-select: none;
+  pointer-events: none;
 }
 
-/* 垂直底部后置上下文：固定高度 + 顶部对齐（使紧邻选区的文字完整贴合不被截断） + 底部完全透明渐变 */
 .quick-share-excerpt-bottom-fade {
   height: 64px;
   max-height: 64px;
@@ -343,6 +561,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
     rgba(0, 0, 0, 1) 100%
   );
   margin-top: 6px;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* 段落内部：前置文字水平淡入渐显与微模糊 */
@@ -350,16 +570,17 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   display: inline;
   opacity: 0.4;
   filter: blur(0.4px);
-  background: linear-gradient(to right, transparent 0%, currentColor 95%);
+  background: linear-gradient(to right, transparent 0%, var(--qs-text-primary) 95%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* 段落内部：选中的核心文字，100% 锐利高亮，不施加多余加粗或特殊字号 */
+/* 段落内部：选中的核心文字，100% 锐利高亮 */
 :deep(.quick-share-spotlight) {
   display: inline;
   opacity: 1;
   filter: none;
+  color: var(--qs-text-primary);
 }
 
 /* 段落内部：后置文字水平淡出渐隐与微模糊 */
@@ -367,7 +588,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   display: inline;
   opacity: 0.4;
   filter: blur(0.4px);
-  background: linear-gradient(to right, currentColor 5%, transparent 100%);
+  background: linear-gradient(to right, var(--qs-text-primary) 5%, transparent 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -387,20 +608,35 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   display: none !important;
 }
 
-/* 富文本流内图片与段落排版 (高度自然撑开，无 max-height 限制) */
+/* 富文本容器：统一字色与继承重置 */
+.quick-share-rich-body {
+  color: var(--qs-text-primary);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+:deep(.quick-share-rich-body) {
+  color: var(--qs-text-primary);
+}
+
+:deep(.quick-share-rich-body *) {
+  color: inherit;
+}
+
 :deep(.quick-share-rich-body p) {
+  margin-top: 0;
   margin-bottom: 0.85em;
   word-break: break-word;
 }
 
 :deep(.quick-share-rich-body blockquote) {
-  padding: 8px 16px;
+  padding: 10px 16px;
   margin-top: 14px;
   margin-bottom: 14px;
-  border-left: 3px solid currentColor;
-  background-color: rgba(120, 120, 120, 0.08);
+  border-left: 3.5px solid var(--qs-quote-border);
+  background-color: var(--qs-quote-bg);
   border-radius: 0 8px 8px 0;
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 :deep(.quick-share-rich-body blockquote p:last-child) {
@@ -438,15 +674,17 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin-bottom: 0.35em;
 }
 
+:deep(.quick-share-rich-body h1),
 :deep(.quick-share-rich-body h2),
 :deep(.quick-share-rich-body h3) {
   font-weight: 700;
   margin-top: 1.2em;
   margin-bottom: 0.5em;
+  color: var(--qs-text-primary);
 }
 
 :deep(.quick-share-rich-body a) {
-  color: inherit;
+  color: var(--qs-text-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
   opacity: 0.85;
@@ -454,7 +692,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
 :deep(.quick-share-rich-body pre),
 :deep(.quick-share-rich-body code) {
-  background-color: rgba(128, 128, 128, 0.12);
+  background-color: var(--qs-code-bg);
+  color: var(--qs-code-text);
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -466,7 +705,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 }
 
 :deep(.quick-share-rich-body code) {
-  padding: 2px 4px;
+  padding: 2px 5px;
 }
 
 /* 表格排版与边框美化 */
@@ -477,15 +716,15 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin: 14px 0;
   font-size: 0.88em;
   line-height: 1.55;
-  border: 1px solid rgba(120, 120, 120, 0.3);
+  border: 1px solid var(--qs-table-border);
   border-radius: 8px;
   overflow: hidden;
 }
 
 :deep(.quick-share-rich-body th),
 :deep(.quick-share-rich-body td) {
-  border-right: 1px solid rgba(120, 120, 120, 0.25);
-  border-bottom: 1px solid rgba(120, 120, 120, 0.25);
+  border-right: 1px solid var(--qs-table-border);
+  border-bottom: 1px solid var(--qs-table-border);
   padding: 8px 12px;
   text-align: left;
 }
@@ -500,15 +739,31 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 }
 
 :deep(.quick-share-rich-body th) {
-  background-color: rgba(120, 120, 120, 0.12);
+  background-color: var(--qs-table-header-bg);
   font-weight: 700;
 }
 
 :deep(.quick-share-rich-body tr:nth-child(even)) {
-  background-color: rgba(120, 120, 120, 0.04);
+  background-color: var(--qs-table-row-even-bg);
 }
 
-/* Prompt 内部图片与文件附件排版 (图片全宽、自适应高度清晰呈现，文件卡片保真) */
+/* Prompt 内部富文本与图片附件 */
+.quick-share-prompt-body {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--qs-text-primary);
+  word-break: break-word;
+}
+
+:deep(.quick-share-prompt-body) {
+  color: var(--qs-text-primary);
+}
+
+:deep(.quick-share-prompt-body *) {
+  color: inherit;
+}
+
 :deep(.quick-share-prompt-body p) {
   margin-bottom: 0.5em;
 }
@@ -543,8 +798,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin-top: 10px;
   margin-bottom: 6px;
   border-radius: 12px;
-  background-color: rgba(128, 128, 128, 0.12);
-  border: 1px solid rgba(128, 128, 128, 0.18);
+  background-color: var(--qs-code-bg);
+  border: 1px solid var(--qs-prompt-border);
   font-size: 13px;
   font-weight: 500;
   width: 100%;
@@ -558,4 +813,69 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   height: 20px;
   opacity: 0.85;
 }
+
+/* Media 区域 (推文配图等) */
+.qs-media-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.qs-media-item {
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.qs-media-img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Footer */
+.qs-card-footer {
+  padding-top: 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--qs-text-secondary);
+  width: 100%;
+}
+
+.qs-footer-info {
+  min-width: 0;
+  flex: 1;
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qs-footer-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  word-break: break-all;
+  opacity: 0.85;
+  user-select: all;
+}
+
+.qs-footer-watermark {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-size: 11px;
+  opacity: 0.75;
+}
 </style>
+

@@ -1,6 +1,7 @@
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData } from '@/types/post';
 import { cleanShareUrl } from '@/utils/url';
+import { sanitizeHtmlForCard } from '@/utils/exporter';
 
 export class ZhihuAdapter extends BaseAdapter {
   readonly platform = 'zhihu';
@@ -195,11 +196,11 @@ export class ZhihuAdapter extends BaseAdapter {
       const isExcerpt = Boolean(selection);
 
       if (selection) {
-        // 划选模式：保留完整选区 HTML，提取前后上下文
+        // 划选模式：保留完整选区 HTML，提取前后上下文并净化
         content = selection.selectedText.trim();
-        contentHtml = selection.selectedHtml || selection.selectedText.trim();
-        excerptBeforeHtml = selection.beforeHtml;
-        excerptAfterHtml = selection.afterHtml;
+        contentHtml = sanitizeHtmlForCard(selection.selectedHtml || selection.selectedText.trim());
+        excerptBeforeHtml = selection.beforeHtml ? sanitizeHtmlForCard(selection.beforeHtml) : undefined;
+        excerptAfterHtml = selection.afterHtml ? sanitizeHtmlForCard(selection.afterHtml) : undefined;
       } else if (richContentEl) {
         contentHtml = this.cleanZhihuHtml(richContentEl);
         content = richContentEl.textContent?.trim() || '';
@@ -298,9 +299,9 @@ export class ZhihuAdapter extends BaseAdapter {
 
       if (selection) {
         content = selection.selectedText.trim();
-        contentHtml = selection.selectedHtml || selection.selectedText.trim();
-        excerptBeforeHtml = selection.beforeHtml;
-        excerptAfterHtml = selection.afterHtml;
+        contentHtml = sanitizeHtmlForCard(selection.selectedHtml || selection.selectedText.trim());
+        excerptBeforeHtml = selection.beforeHtml ? sanitizeHtmlForCard(selection.beforeHtml) : undefined;
+        excerptAfterHtml = selection.afterHtml ? sanitizeHtmlForCard(selection.afterHtml) : undefined;
       } else if (richContentEl) {
         contentHtml = this.cleanZhihuHtml(richContentEl);
         content = richContentEl.textContent?.trim() || '';
@@ -366,6 +367,6 @@ export class ZhihuAdapter extends BaseAdapter {
       }
     });
 
-    return clone.innerHTML;
+    return sanitizeHtmlForCard(clone.innerHTML);
   }
 }

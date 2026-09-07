@@ -1,6 +1,7 @@
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData, PostMedia } from '@/types/post';
 import { cleanShareUrl } from '@/utils/url';
+import { sanitizeHtmlForCard } from '@/utils/exporter';
 
 export class XAdapter extends BaseAdapter {
   readonly platform = 'x';
@@ -164,9 +165,9 @@ export class XAdapter extends BaseAdapter {
       if (selection) {
         // 划选引述模式：保留富文本结构并提取前后上下文
         content = selection.selectedText.trim();
-        contentHtml = selection.selectedHtml || selection.selectedText.trim();
-        excerptBeforeHtml = selection.beforeHtml;
-        excerptAfterHtml = selection.afterHtml;
+        contentHtml = sanitizeHtmlForCard(selection.selectedHtml || selection.selectedText.trim());
+        excerptBeforeHtml = selection.beforeHtml ? sanitizeHtmlForCard(selection.beforeHtml) : undefined;
+        excerptAfterHtml = selection.afterHtml ? sanitizeHtmlForCard(selection.afterHtml) : undefined;
       } else {
         const tweetTextEl = tweet.querySelector<HTMLElement>('div[data-testid="tweetText"]');
         if (tweetTextEl) {
