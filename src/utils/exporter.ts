@@ -176,6 +176,16 @@ export function sanitizeHtmlForCard(html: string): string {
       }
     });
 
+    // 清洗知乎知达/实体词搜索推荐链接，移除图标并还原为正常行内纯文本
+    const entityLinks = temp.querySelectorAll<HTMLAnchorElement>(
+      'a.RichContent-EntityWord, a[href*="zhida.zhihu.com"], a[class*="EntityWord"], a[data-za-not-track-link="true"]'
+    );
+    entityLinks.forEach((a) => {
+      a.querySelectorAll('svg, .ZDI, [class*="FourPointedStar"]').forEach((icon) => icon.remove());
+      const text = a.textContent?.trim() || '';
+      a.replaceWith(document.createTextNode(text));
+    });
+
     return temp.innerHTML;
   } catch {
     return html;

@@ -367,6 +367,16 @@ export class ZhihuAdapter extends BaseAdapter {
       }
     });
 
+    // 清除知乎“知达 / 实体词 / 自动百科推荐”链接，移除四角星等图标并还原为正常行内纯文本
+    const entityLinks = clone.querySelectorAll<HTMLAnchorElement>(
+      'a.RichContent-EntityWord, a[href*="zhida.zhihu.com"], a[class*="EntityWord"], a[data-za-not-track-link="true"]'
+    );
+    entityLinks.forEach((a) => {
+      a.querySelectorAll('svg, .ZDI, [class*="FourPointedStar"]').forEach((icon) => icon.remove());
+      const text = a.textContent?.trim() || '';
+      a.replaceWith(document.createTextNode(text));
+    });
+
     return sanitizeHtmlForCard(clone.innerHTML);
   }
 }
