@@ -2,6 +2,13 @@ import type { PostData, PlatformType } from '@/types/post';
 
 export type OnShareTrigger = (post: PostData) => void;
 
+export interface ExcerptSelection {
+  selectedText: string;
+  selectedHtml?: string;
+  beforeHtml?: string;
+  afterHtml?: string;
+}
+
 export abstract class BaseAdapter {
   abstract readonly platform: PlatformType;
   abstract readonly name: string;
@@ -22,9 +29,22 @@ export abstract class BaseAdapter {
   abstract stop(): void;
 
   /**
-   * 从目标 DOM 节点或当前页面中提取 Post 结构化数据
+   * 检查给定的 DOM 节点是否位于当前站点的 Post Entity 容器内
+   * 若在则返回该 Entity 容器的根 HTMLElement，若不在则返回 null
    */
-  abstract extract(targetElement?: HTMLElement): Promise<PostData | null>;
+  abstract findEntityFromNode(node: Node): HTMLElement | null;
+
+  /**
+   * 获取 Entity 内的正文内容根容器元素（用于 Range 上下文提取）
+   */
+  abstract getContentRootFromEntity(entity: HTMLElement): HTMLElement | null;
+
+  /**
+   * 从目标 DOM 节点或当前页面中提取 Post 结构化数据
+   * @param targetElement 目标 Entity DOM 节点
+   * @param selection 可选：用户划选的引述文本/HTML 及前后上下文
+   */
+  abstract extract(targetElement?: HTMLElement, selection?: ExcerptSelection): Promise<PostData | null>;
 
   /**
    * 辅助方法：生成标准按钮的 HTML/DOM 结构

@@ -20,6 +20,9 @@ export interface PostData {
   title?: string;
   content: string;
   contentHtml?: string;
+  isExcerpt?: boolean;
+  excerptBeforeHtml?: string;
+  excerptAfterHtml?: string;
   media?: PostMedia[];
   createdAt?: string;
   stats?: {

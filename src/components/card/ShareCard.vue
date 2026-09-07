@@ -141,30 +141,71 @@ const platformConfig = computed(() => {
           {{ post.title }}
         </h3>
         
-        <!-- 1. 富文本图文混排模式 -->
-        <div
-          v-if="post.contentHtml"
-          class="quick-share-rich-body leading-relaxed break-words overflow-hidden"
-          :class="currentTheme.textClass"
-          :style="{
-            fontSize: `${15 * options.fontScale}px`,
-            lineHeight: 1.7,
-          }"
-          v-html="post.contentHtml"
-        />
+        <!-- 1. 划选摘录模式：保留原 DOM 格式，支持段落内水平渐变 + 段落外垂直渐变 -->
+        <div v-if="post.isExcerpt" class="w-full">
+          <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
+          <div
+            v-if="post.excerptBeforeHtml"
+            class="quick-share-excerpt-top-fade quick-share-rich-body select-none pointer-events-none"
+            :class="currentTheme.textClass"
+            :style="{
+              fontSize: `${15 * options.fontScale}px`,
+              lineHeight: 1.7,
+            }"
+            v-html="post.excerptBeforeHtml"
+          />
 
-        <!-- 2. 纯文本模式 -->
-        <p
-          v-else
-          class="whitespace-pre-wrap leading-relaxed tracking-normal text-sm break-words overflow-hidden"
-          :class="currentTheme.textClass"
-          :style="{
-            fontSize: `${15 * options.fontScale}px`,
-            lineHeight: 1.7,
-          }"
-        >
-          {{ post.content }}
-        </p>
+          <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
+          <div
+            class="quick-share-rich-body leading-relaxed break-words"
+            :class="currentTheme.textClass"
+            :style="{
+              fontSize: `${15 * options.fontScale}px`,
+              lineHeight: 1.7,
+            }"
+            v-html="post.contentHtml || post.content"
+          />
+
+          <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
+          <div
+            v-if="post.excerptAfterHtml"
+            class="quick-share-excerpt-bottom-fade quick-share-rich-body select-none pointer-events-none"
+            :class="currentTheme.textClass"
+            :style="{
+              fontSize: `${15 * options.fontScale}px`,
+              lineHeight: 1.7,
+            }"
+            v-html="post.excerptAfterHtml"
+          />
+        </div>
+
+        <!-- 2. 全文分享模式 -->
+        <template v-else>
+          <!-- 富文本图文混排模式 -->
+          <div
+            v-if="post.contentHtml"
+            class="quick-share-rich-body leading-relaxed break-words"
+            :class="currentTheme.textClass"
+            :style="{
+              fontSize: `${15 * options.fontScale}px`,
+              lineHeight: 1.7,
+            }"
+            v-html="post.contentHtml"
+          />
+
+          <!-- 纯文本模式 -->
+          <p
+            v-else
+            class="whitespace-pre-wrap leading-relaxed tracking-normal text-sm break-words"
+            :class="currentTheme.textClass"
+            :style="{
+              fontSize: `${15 * options.fontScale}px`,
+              lineHeight: 1.7,
+            }"
+          >
+            {{ post.content }}
+          </p>
+        </template>
       </div>
 
       <!-- Media: X / 纯文本模式下的图片 (100% 宽度，高度自动撑高) -->
@@ -209,6 +250,93 @@ const platformConfig = computed(() => {
 </template>
 
 <style scoped>
+/* 垂直顶部前置上下文：固定高度 + 底部对齐（使紧邻选区的文字完整贴合不被截断） + 顶部完全透明渐变 */
+.quick-share-excerpt-top-fade {
+  height: 64px;
+  max-height: 64px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  opacity: 0.35;
+  filter: blur(0.35px);
+  position: relative;
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.45) 40%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.45) 40%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  margin-bottom: 6px;
+}
+
+/* 垂直底部后置上下文：固定高度 + 顶部对齐（使紧邻选区的文字完整贴合不被截断） + 底部完全透明渐变 */
+.quick-share-excerpt-bottom-fade {
+  height: 64px;
+  max-height: 64px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  opacity: 0.35;
+  filter: blur(0.35px);
+  position: relative;
+  mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.45) 40%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.45) 40%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  margin-top: 6px;
+}
+
+/* 段落内部：前置文字水平淡入渐显与微模糊 */
+:deep(.quick-share-inline-fade-in) {
+  display: inline;
+  opacity: 0.4;
+  filter: blur(0.4px);
+  background: linear-gradient(to right, transparent 0%, currentColor 95%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 段落内部：选中的核心文字，100% 锐利高亮，不施加多余加粗或特殊字号 */
+:deep(.quick-share-spotlight) {
+  display: inline;
+  opacity: 1;
+  filter: none;
+}
+
+/* 段落内部：后置文字水平淡出渐隐与微模糊 */
+:deep(.quick-share-inline-fade-out) {
+  display: inline;
+  opacity: 0.4;
+  filter: blur(0.4px);
+  background: linear-gradient(to right, currentColor 5%, transparent 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 忽略上下文中的多余图片与按钮以维持纯净书摘质感 */
+:deep(.quick-share-excerpt-top-fade img),
+:deep(.quick-share-excerpt-bottom-fade img),
+:deep(.quick-share-excerpt-top-fade button),
+:deep(.quick-share-excerpt-bottom-fade button) {
+  display: none !important;
+}
+
 /* 富文本流内图片与段落排版 (高度自然撑开，无 max-height 限制) */
 :deep(.quick-share-rich-body p) {
   margin-bottom: 0.85em;

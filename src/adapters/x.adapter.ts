@@ -1,4 +1,4 @@
-import { BaseAdapter, type OnShareTrigger } from './base';
+import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData, PostMedia } from '@/types/post';
 import { cleanShareUrl } from '@/utils/url';
 
@@ -32,6 +32,22 @@ export class XAdapter extends BaseAdapter {
       this.observer = null;
     }
     document.querySelectorAll('.quick-share-x-wrapper').forEach((el) => el.remove());
+  }
+
+  /**
+   * 检查选区节点是否处于 X 推文容器内部
+   */
+  findEntityFromNode(node: Node): HTMLElement | null {
+    const el = (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement) as HTMLElement | null;
+    if (!el) return null;
+    return el.closest<HTMLElement>('article[data-testid="tweet"]');
+  }
+
+  /**
+   * 获取 X 推文的正文根容器
+   */
+  getContentRootFromEntity(entity: HTMLElement): HTMLElement | null {
+    return entity.querySelector<HTMLElement>('div[data-testid="tweetText"]') || entity;
   }
 
   private scanAndInject(): void {
@@ -104,7 +120,9 @@ export class XAdapter extends BaseAdapter {
     }
   }
 
-  async extract(tweet: HTMLElement): Promise<PostData | null> {
+  async extract(tweet?: HTMLElement, selection?: ExcerptSelection): Promise<PostData | null> {
+    if (!tweet) return null;
+
     try {
       // 提取作者信息
       const userNameEl = tweet.querySelector('div[data-testid="User-Name"]');
@@ -134,69 +152,95 @@ export class XAdapter extends BaseAdapter {
       const rawUrl = timeParentLink ? (timeParentLink as HTMLAnchorElement).href : window.location.href;
       const cleanUrl = cleanShareUrl(rawUrl);
 
-      // 1. 提取当前 Post 的正文（忽略引用推文/转推原帖的内容）
-      // 查找内嵌引用卡片容器
-      const quoteCard = tweet.querySelector('div[aria-labelledby*="id__"], div[role="link"]');
-      
-      // 取第一个属于本推文的 tweetText
-      const tweetTextEl = tweet.querySelector<HTMLElement>('div[data-testid="tweetText"]');
+      // 1. 提取正文内容与富文本 HTML
       let content = '';
+      let contentHtml: string | undefined = undefined;
+      let excerptBeforeHtml: string | undefined = undefined;
+      let excerptAfterHtml: string | undefined = undefined;
+      const isExcerpt = Boolean(selection);
 
-      if (tweetTextEl) {
-        const clone = tweetTextEl.cloneNode(true) as HTMLElement;
-        // 遍历处理链接，还原为真实 URL
-        const links = clone.querySelectorAll<HTMLAnchorElement>('a');
-        links.forEach((a) => {
-          const href = a.getAttribute('href') || '';
-          const text = a.textContent?.trim() || '';
-          // 如果是 @用户 或 #话题，保留原样
-          if (text.startsWith('@') || text.startsWith('#')) {
-            return;
+      if (selection) {
+        // 划选引述模式：保留富文本结构并提取前后上下文
+        content = selection.selectedText.trim();
+        contentHtml = selection.selectedHtml || selection.selectedText.trim();
+        excerptBeforeHtml = selection.beforeHtml;
+        excerptAfterHtml = selection.afterHtml;
+      } else {
+        const tweetTextEl = tweet.querySelector<HTMLElement>('div[data-testid="tweetText"]');
+        if (tweetTextEl) {
+          const clone = tweetTextEl.cloneNode(true) as HTMLElement;
+          const links = clone.querySelectorAll<HTMLAnchorElement>('a');
+          links.forEach((a) => {
+            const href = a.getAttribute('href') || '';
+            const text = a.textContent?.trim() || '';
+            if (text.startsWith('@') || text.startsWith('#')) return;
+            let actualUrl = a.title || href;
+            if (actualUrl.startsWith('/')) {
+              actualUrl = `https://x.com${actualUrl}`;
+            }
+            const span = document.createElement('span');
+            span.textContent = ` ${actualUrl} `;
+            a.replaceWith(span);
+          });
+          content = clone.textContent?.trim() || '';
+        }
+
+        // 检查 video
+        const hasVideo = tweet.querySelector('video, div[data-testid="videoComponent"], div[data-testid="videoPlayer"]');
+        if (hasVideo) {
+          const videoEl = tweet.querySelector<HTMLVideoElement>('video');
+          const videoSrc = videoEl?.src && !videoEl.src.startsWith('blob:') ? videoEl.src : cleanUrl;
+          content += `\n\n[视频]: ${videoSrc}`;
+        }
+
+        // 检查 Link Card / 网页链接卡片
+        const cardEl = tweet.querySelector<HTMLElement>(
+          'div[data-testid="card.wrapper"], [data-testid="card.layoutLarge.detail"], [data-testid="card.layoutSmall.detail"], div[data-testid="linkCard"], a[target="_blank"][role="link"]'
+        );
+        let cardUrl = '';
+        if (cardEl) {
+          const cardLink = cardEl.tagName.toLowerCase() === 'a' ? (cardEl as HTMLAnchorElement) : cardEl.querySelector<HTMLAnchorElement>('a[href]');
+          if (cardLink) {
+            const rawCardHref = cardLink.getAttribute('href') || cardLink.title || '';
+            if (rawCardHref && (rawCardHref.startsWith('http') || !rawCardHref.startsWith('/'))) {
+              cardUrl = cleanShareUrl(rawCardHref);
+            }
           }
-          let actualUrl = a.title || href;
-          if (actualUrl.startsWith('/')) {
-            actualUrl = `https://x.com${actualUrl}`;
+        }
+
+        // 如果正文中未包含卡片链接，则附在正文末尾（排版位于图片上方）
+        if (cardUrl && !content.includes(cardUrl)) {
+          content = content ? `${content}\n\n${cardUrl}` : cardUrl;
+        }
+      }
+
+      // 2. 提取媒体图片（包含推文配图与 Link Card 预览大图）
+      let mediaList: PostMedia[] | undefined = undefined;
+      if (!selection) {
+        // 仅排除引用推文（Quote Tweet）内的配图，不排除当前推文的 Link Card
+        const quoteContainer = tweet.querySelector('div[data-testid="quoteTweet"]');
+        const photoEls = tweet.querySelectorAll<HTMLImageElement>(
+          'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"], img[src*="pbs.twimg.com/card_img/"], div[data-testid="card.wrapper"] img, [data-testid="card.layoutLarge.detail"] img'
+        );
+        const list: PostMedia[] = [];
+
+        photoEls.forEach((img) => {
+          if (quoteContainer && quoteContainer.contains(img)) return;
+          if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
+            let highResUrl = img.src;
+            if (highResUrl.includes('name=')) {
+              highResUrl = highResUrl.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
+            }
+            if (!list.some((m) => m.url === highResUrl)) {
+              list.push({
+                type: 'image',
+                url: highResUrl,
+              });
+            }
           }
-          const span = document.createElement('span');
-          span.textContent = ` ${actualUrl} `;
-          a.replaceWith(span);
         });
-
-        content = clone.textContent?.trim() || '';
+        if (list.length > 0) mediaList = list;
       }
-
-      // 2. 检查是否有 video 标签或视频播放器，将视频 URL 附在正文里
-      const hasVideo = tweet.querySelector('video, div[data-testid="videoComponent"], div[data-testid="videoPlayer"]');
-      if (hasVideo) {
-        const videoEl = tweet.querySelector<HTMLVideoElement>('video');
-        const videoSrc = videoEl?.src && !videoEl.src.startsWith('blob:') ? videoEl.src : cleanUrl;
-        content += `\n\n[视频]: ${videoSrc}`;
-      }
-
-      // 3. 提取当前 Post 自身的媒体图片（排除 quoteTweet 内嵌卡片中的图片）
-      const mediaList: PostMedia[] = [];
-      const quoteContainer = tweet.querySelector('div[data-testid="quoteTweet"], [data-testid="card.layoutLarge.detail"]');
-      const photoEls = tweet.querySelectorAll<HTMLImageElement>('div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"]');
-
-      photoEls.forEach((img) => {
-        // 如果图片处于被引用推文容器内部，则忽略
-        if (quoteContainer && quoteContainer.contains(img)) {
-          return;
-        }
-        // 排除 emoji 表情与用户头像
-        if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
-          let highResUrl = img.src;
-          if (highResUrl.includes('name=')) {
-            highResUrl = highResUrl.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
-          }
-          if (!mediaList.some((m) => m.url === highResUrl)) {
-            mediaList.push({
-              type: 'image',
-              url: highResUrl,
-            });
-          }
-        }
-      });
 
       return {
         id: cleanUrl,
@@ -208,7 +252,11 @@ export class XAdapter extends BaseAdapter {
           avatarUrl,
         },
         content,
-        media: mediaList.length > 0 ? mediaList : undefined,
+        contentHtml,
+        isExcerpt,
+        excerptBeforeHtml,
+        excerptAfterHtml,
+        media: mediaList,
       };
     } catch (err) {
       console.error('[QuickShare] Failed to extract tweet data:', err);
