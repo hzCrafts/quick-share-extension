@@ -11,9 +11,16 @@
 - ⚙️ **丰富定制选项**：支持外层间距、字体缩放、原文二维码生成、品牌水印、作者头像圆角等灵活配置。
 - 📸 **高清图片导出**：基于 `modern-screenshot` 生成高分辨率（2x/3x Retina）PNG 图片，支持直接复制到系统剪切板与一键下载。
 - 🌐 **多维度触发**：
-  - 站点 UI 自动注入的分享按钮
-  - 浏览器工具栏 Popup 弹窗
-  - 网页划选文本右键菜单一键卡片化
+  - 站点内容操作栏自动注入的 QuickShare 按钮
+  - 网页划选文字自动浮现的悬浮快捷按钮 (Floating Trigger)
+  - 网页划选右键上下文菜单引述分享
+
+---
+
+## 📚 开发规范与文档 (SSOT)
+
+- 🤖 **[AGENTS.md](./AGENTS.md)**：Agent 与开发者全景指南、核心规范与架构设计
+- 📌 **[docs/adapter-guidelines.md](./docs/adapter-guidelines.md)**：站点适配器接入与金句分享 SSOT 规范
 
 ---
 
@@ -22,32 +29,29 @@
 ```
 src/
 ├── adapters/               # 站点适配器层
-│   ├── base.ts             # BaseAdapter 抽象基类
+│   ├── base.ts             # BaseAdapter 抽象基类与 ExcerptSelection
 │   ├── x.adapter.ts        # X (Twitter) 适配器
 │   ├── zhihu.adapter.ts    # 知乎问答与专栏文章适配器
-│   ├── universal.adapter.ts# 通用网页选中文本适配器
 │   └── index.ts            # 适配器注册与匹配中心
 ├── assets/                 # 样式与静态资源
 │   └── style.css           # Tailwind 基础与卡片排版样式
 ├── components/             # Vue 组件
 │   ├── card/
-│   │   └── ShareCard.vue   # 卡片渲染主体（支持主题与二维码）
+│   │   └── ShareCard.vue   # 卡片渲染主体（主题、富文本、双向渐隐渲染）
 │   └── modal/
-│       └── ShareModal.vue  # 定制控制台与实时预览模态框
+│       └── ShareModal.vue  # 定制控制台与实时预览模态框（支持 640px 离屏高清导出）
 ├── entrypoints/            # WXT 入口定义
 │   ├── background.ts       # 后台 Service Worker（右键菜单、扩展生命周期）
-│   ├── content/            # Content Script（Shadow DOM 挂载与注入）
+│   ├── content/            # Content Script（Shadow DOM 挂载、选区监听、划词悬浮按钮）
 │   │   ├── App.vue
 │   │   └── index.ts
-│   └── popup/              # 扩展工具栏弹窗
-│       ├── App.vue
-│       ├── index.html
-│       └── main.ts
+│   └── popup/              # 扩展工具栏状态展示 Popup
 ├── types/                  # TypeScript 类型定义
-│   ├── post.ts             # Post 结构化契约
+│   ├── post.ts             # PostData 结构化契约
 │   └── theme.ts            # 主题与渲染选项
 └── utils/                  # 导出与通用工具
-    └── exporter.ts         # modern-screenshot 导出与剪切板管理
+    ├── exporter.ts         # modern-screenshot 离屏高清导出与剪切板管理
+    └── url.ts              # 规范 URL 营销参数清洗器 (cleanShareUrl)
 ```
 
 ---
