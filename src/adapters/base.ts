@@ -29,7 +29,7 @@ export abstract class BaseAdapter {
   /**
    * 辅助方法：生成标准按钮的 HTML/DOM 结构
    */
-  protected createShareButton(onClick: (e: MouseEvent) => void, title = '生成分享图'): HTMLElement {
+  protected createShareButton(onClick: (e: MouseEvent) => void, title = 'QuickShare'): HTMLElement {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'quick-share-inject-btn';

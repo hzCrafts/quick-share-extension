@@ -53,7 +53,7 @@ export class ZhihuAdapter extends BaseAdapter {
         if (postData && this.onShareCallback) {
           this.onShareCallback(postData);
         }
-      }, '生成知乎分享卡片');
+      }, 'QuickShare');
 
       btn.style.display = 'inline-flex';
       btn.style.alignItems = 'center';
@@ -66,7 +66,7 @@ export class ZhihuAdapter extends BaseAdapter {
       btn.style.padding = '4px 8px';
       btn.style.borderRadius = '4px';
       btn.style.transition = 'color 0.2s';
-      btn.innerHTML += '<span style="font-size: 13px; font-weight: 500;">卡片分享</span>';
+      btn.innerHTML += '<span style="font-size: 13px; font-weight: 500;">QuickShare</span>';
 
       btn.onmouseenter = () => {
         btn.style.color = '#0066ff';
@@ -158,13 +158,62 @@ export class ZhihuAdapter extends BaseAdapter {
       const contentHtml = this.cleanZhihuHtml(richContentEl);
       const content = richContentEl.textContent?.trim() || '';
 
-      // 提取原文链接
-      const itemLink = item.querySelector<HTMLAnchorElement>('meta[itemprop="url"]') || item.querySelector<HTMLAnchorElement>('.ContentItem-title a');
-      const postUrl = itemLink?.href || window.location.href;
+      // 提取回答专属 URL 并清洗
+      let rawPostUrl = '';
+      
+      // 1. 尝试从 item 自身的属性或子链接中直接获取完整的 /answer/ 链接
+      const metaUrl = item.querySelector('meta[itemprop="url"]')?.getAttribute('content');
+      if (metaUrl && metaUrl.includes('/answer/')) {
+        rawPostUrl = metaUrl.startsWith('http') ? metaUrl : `https://www.zhihu.com${metaUrl}`;
+      }
 
-      // 提取时间
-      const timeEl = item.querySelector('.ContentItem-time, [itemprop="dateModified"], [itemprop="dateCreated"]');
-      const createdAt = timeEl?.textContent?.replace('发布于 ', '')?.trim() || new Date().toLocaleDateString('zh-CN');
+      if (!rawPostUrl) {
+        const answerLink = item.querySelector<HTMLAnchorElement>('a[href*="/answer/"]');
+        if (answerLink?.href && answerLink.href.includes('/answer/')) {
+          rawPostUrl = answerLink.href;
+        }
+      }
+
+      // 2. 如果未直接找到 /answer/ 链接，通过 questionId + answerId 进行精准拼接
+      if (!rawPostUrl || !rawPostUrl.includes('/answer/')) {
+        let answerId = item.getAttribute('name') || ''; // AnswerItem 上的 name 通常就是 answerId
+        if (!answerId) {
+          try {
+            const zop = item.getAttribute('data-zop');
+            if (zop) {
+              const parsed = JSON.parse(zop);
+              if (parsed.itemId) answerId = String(parsed.itemId);
+            }
+          } catch {}
+        }
+        if (!answerId) {
+          try {
+            const za = item.getAttribute('data-za-extra-module');
+            if (za) {
+              const parsed = JSON.parse(za);
+              if (parsed?.card?.content?.token) answerId = String(parsed.card.content.token);
+            }
+          } catch {}
+        }
+
+        // 提取 questionId
+        let questionId = '';
+        const qMatch = window.location.pathname.match(/\/question\/(\d+)/);
+        if (qMatch) {
+          questionId = qMatch[1];
+        } else {
+          const qLink = document.querySelector<HTMLAnchorElement>('a[href*="/question/"]') || item.querySelector<HTMLAnchorElement>('a[href*="/question/"]');
+          const match = qLink?.href.match(/\/question\/(\d+)/);
+          if (match) questionId = match[1];
+        }
+
+        if (questionId && answerId) {
+          rawPostUrl = `https://www.zhihu.com/question/${questionId}/answer/${answerId}`;
+        }
+      }
+
+      if (!rawPostUrl) rawPostUrl = window.location.href;
+      const postUrl = cleanShareUrl(rawPostUrl);
 
       return {
         id: postUrl,
@@ -178,7 +227,6 @@ export class ZhihuAdapter extends BaseAdapter {
         },
         content,
         contentHtml,
-        createdAt,
       };
     } catch (err) {
       console.error('[QuickShare] Failed to extract zhihu answer data:', err);
@@ -188,21 +236,22 @@ export class ZhihuAdapter extends BaseAdapter {
 
   private async extractArticle(): Promise<PostData | null> {
     try {
-      const title = document.querySelector('.Post-Title')?.textContent?.trim() || document.title;
-      const authorEl = document.querySelector('.AuthorInfo-name .UserLink-link') || document.querySelector('.Post-Author');
+      const title = document.querySelector('.Post-Title, .PostIndex-title')?.textContent?.trim() || document.title;
+      const authorEl = document.querySelector('.AuthorInfo-name .UserLink-link, .PostIndex-authorName, .AuthorInfo-head');
       const name = authorEl?.textContent?.trim() || '知乎专栏作者';
-      const avatarEl = document.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar');
+      const avatarEl = document.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar, .PostIndex-authorAvatar img');
       const avatarUrl = avatarEl?.src;
-      const richContentEl = document.querySelector<HTMLElement>('.Post-RichText, .RichText');
+      const richContentEl = document.querySelector<HTMLElement>('.Post-RichText, .RichText, .Post-content');
       if (!richContentEl) return null;
 
       const contentHtml = this.cleanZhihuHtml(richContentEl);
       const content = richContentEl.textContent?.trim() || '';
+      const postUrl = cleanShareUrl(window.location.href);
 
       return {
-        id: window.location.href,
+        id: postUrl,
         platform: 'zhihu',
-        url: window.location.href,
+        url: postUrl,
         title,
         author: {
           name,
@@ -211,7 +260,6 @@ export class ZhihuAdapter extends BaseAdapter {
         },
         content,
         contentHtml,
-        createdAt: new Date().toLocaleDateString('zh-CN'),
       };
     } catch (err) {
       console.error('[QuickShare] Failed to extract zhihu article data:', err);

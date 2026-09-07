@@ -19,7 +19,9 @@ import {
   ZoomOut,
   RotateCcw,
   Loader2,
-  Move
+  Move,
+  ArrowLeftRight,
+  Link2
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -39,7 +41,7 @@ const viewportRef = ref<HTMLElement | null>(null);
 const options = reactive<CardRenderOptions>({
   themeId: 'gradient-sunset',
   padding: 32,
-  showQrCode: true,
+  showQrCode: false,
   showWatermark: true,
   showStats: false,
   fontScale: 1.0,
@@ -48,14 +50,14 @@ const options = reactive<CardRenderOptions>({
   aspectRatio: 'auto',
 });
 
-// 生成的高清预览图片（统一 2.5x Retina 级高分辨率）
+// 生成的高清预览图片
 const previewDataUrl = ref<string>('');
 const previewBlob = ref<Blob | null>(null);
 const imageNaturalWidth = ref<number>(0);
 const imageNaturalHeight = ref<number>(0);
 const isRendering = ref<boolean>(false);
 
-// 缩放与平移状态
+// 缩放与平移状态 (支持 0.01x 极小全景缩放 ~ 4.0x 高清局部放大)
 const scale = ref<number>(1);
 const fitScale = ref<number>(1);
 const translateX = ref<number>(0);
@@ -70,9 +72,10 @@ const initialTranslateY = ref<number>(0);
 const isCopying = ref(false);
 const isDownloading = ref(false);
 const copySuccess = ref(false);
+const copyUrlSuccess = ref(false);
 
 /**
- * 触发离屏真实 DOM 渲染为高清图片（保证下载与复制完全一致）
+ * 触发离屏真实 DOM 渲染为 2.5x 高清图片
  */
 let renderTimer: any = null;
 const triggerRender = () => {
@@ -85,7 +88,7 @@ const triggerRender = () => {
       await new Promise((r) => setTimeout(r, 120));
 
       const blob = await domToBlob(offscreenCardRef.value, {
-        scale: 2.5, // 统一 2.5x Retina 高清输出
+        scale: 2.5,
         quality: 0.98,
         type: 'image/png',
         features: {
@@ -101,7 +104,7 @@ const triggerRender = () => {
         const url = URL.createObjectURL(blob);
         const img = new Image();
         img.onload = () => {
-          imageNaturalWidth.value = img.naturalWidth / 2.5; // 逻辑 1x 像素
+          imageNaturalWidth.value = img.naturalWidth / 2.5;
           imageNaturalHeight.value = img.naturalHeight / 2.5;
           previewDataUrl.value = url;
           isRendering.value = false;
@@ -117,7 +120,7 @@ const triggerRender = () => {
 };
 
 /**
- * 自适应居中（头尾完全可见，不留死角）
+ * 全图自适应（无论多长的长图，彻底解除最小缩放限制，100% 完整显示整张长图）
  */
 const resetToFit = () => {
   if (!viewportRef.value || !imageNaturalWidth.value || !imageNaturalHeight.value) return;
@@ -128,7 +131,8 @@ const resetToFit = () => {
     const scaleX = vWidth / imageNaturalWidth.value;
     const scaleY = vHeight / imageNaturalHeight.value;
     const calculatedFit = Math.min(scaleX, scaleY, 1);
-    fitScale.value = Math.max(0.08, Number(calculatedFit.toFixed(3)));
+    // 允许任意小缩放比（0.01 起步），让超长图完整一览全貌
+    fitScale.value = Math.max(0.01, Number(calculatedFit.toFixed(4)));
     scale.value = fitScale.value;
     translateX.value = 0;
     translateY.value = 0;
@@ -136,35 +140,70 @@ const resetToFit = () => {
 };
 
 /**
- * 核心算法：基于鼠标光标位置的锚定缩放 (Zoom-towards-Cursor)
- * 保证滚轮缩放时，光标所指位置在视图中绝对静止，不产生漂移
+ * 宽度自适应（缩放到 100% 容器宽度，便于上下滚动长图）
+ */
+const fitToWidth = () => {
+  if (!viewportRef.value || !imageNaturalWidth.value || !imageNaturalHeight.value) return;
+  const vWidth = viewportRef.value.clientWidth - 40;
+  const vHeight = viewportRef.value.clientHeight - 40;
+  if (vWidth > 0 && imageNaturalWidth.value > 0) {
+    const scaleW = Number((vWidth / imageNaturalWidth.value).toFixed(3));
+    scale.value = Math.min(Math.max(0.01, scaleW), 3.5);
+    translateX.value = 0;
+    const scaledHeight = imageNaturalHeight.value * scale.value;
+    if (scaledHeight > vHeight) {
+      translateY.value = (scaledHeight - vHeight) / 2;
+    } else {
+      translateY.value = 0;
+    }
+  }
+};
+
+/**
+ * 复合滚轮事件处理：
+ * - Meta (Command) 或 Ctrl + 滚轮：光标锚定缩放 (Zoom-towards-Cursor)
+ * - Shift + 滚轮：左右横向平移
+ * - 普通滚轮：上下平移
  */
 const handleWheel = (e: WheelEvent) => {
   e.preventDefault();
   if (!viewportRef.value) return;
 
-  const rect = viewportRef.value.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
+  // 1. Meta / Ctrl + 滚轮 -> 缩放
+  if (e.metaKey || e.ctrlKey) {
+    const rect = viewportRef.value.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-  // 鼠标相对于视口中心的坐标偏移
-  const mx = mouseX - rect.width / 2;
-  const my = mouseY - rect.height / 2;
+    const mx = mouseX - rect.width / 2;
+    const my = mouseY - rect.height / 2;
 
-  const delta = e.deltaY < 0 ? 0.08 : -0.08;
-  const oldScale = scale.value;
-  const newScale = Math.min(Math.max(0.1, Number((oldScale + delta).toFixed(3))), 3.5);
+    const delta = e.deltaY < 0 ? 0.08 : -0.08;
+    const oldScale = scale.value;
+    const newScale = Math.min(Math.max(0.01, Number((oldScale + delta).toFixed(3))), 4.0);
 
-  if (newScale === oldScale) return;
+    if (newScale === oldScale) return;
 
-  const ratio = newScale / oldScale;
-  translateX.value = mx - (mx - translateX.value) * ratio;
-  translateY.value = my - (my - translateY.value) * ratio;
-  scale.value = newScale;
+    const ratio = newScale / oldScale;
+    translateX.value = mx - (mx - translateX.value) * ratio;
+    translateY.value = my - (my - translateY.value) * ratio;
+    scale.value = newScale;
+    return;
+  }
+
+  // 2. Shift + 滚轮 -> 左右平移
+  if (e.shiftKey) {
+    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+    translateX.value -= delta * 1.2;
+    return;
+  }
+
+  // 3. 普通滚轮 -> 上下平移
+  translateY.value -= e.deltaY * 1.2;
 };
 
 /**
- * 拖拽平移交互
+ * 鼠标拖拽平移交互
  */
 const handleMouseDown = (e: MouseEvent) => {
   if (e.button !== 0) return;
@@ -189,10 +228,10 @@ const handleMouseUp = () => {
 
 // 缩放辅助
 const zoomIn = () => {
-  scale.value = Math.min(3.5, Number((scale.value + 0.15).toFixed(2)));
+  scale.value = Math.min(4.0, Number((scale.value + 0.15).toFixed(2)));
 };
 const zoomOut = () => {
-  scale.value = Math.max(0.1, Number((scale.value - 0.15).toFixed(2)));
+  scale.value = Math.max(0.01, Number((scale.value - 0.15).toFixed(2)));
 };
 const setOriginalSize = () => {
   scale.value = 1;
@@ -200,7 +239,21 @@ const setOriginalSize = () => {
   translateY.value = 0;
 };
 
-// 复制图片（使用同一份高清 Blob，秒级完成）
+// 复制链接
+const handleCopyUrl = async () => {
+  if (!props.post.url) return;
+  try {
+    await navigator.clipboard.writeText(props.post.url);
+    copyUrlSuccess.value = true;
+    setTimeout(() => {
+      copyUrlSuccess.value = false;
+    }, 2000);
+  } catch (err) {
+    console.error('[QuickShare] 复制链接失败:', err);
+  }
+};
+
+// 复制图片
 const handleCopy = async () => {
   if (!previewBlob.value) {
     alert('图片正在渲染中，请稍候...');
@@ -225,7 +278,7 @@ const handleCopy = async () => {
   }
 };
 
-// 下载 PNG（直接使用已生成的同一份高质量 Blob，清晰度 100% 一致）
+// 下载 PNG
 const handleDownload = async () => {
   if (!previewBlob.value) {
     alert('图片正在渲染中，请稍候...');
@@ -276,13 +329,11 @@ onUnmounted(() => {
   }
 });
 
-// 监听选项变动重新渲染
 watch(
   [
     () => options.themeId,
     () => options.padding,
     () => options.fontScale,
-    () => options.showQrCode,
     () => options.showWatermark,
     () => props.post,
   ],
@@ -298,12 +349,12 @@ watch(
     class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm transition-opacity text-slate-800 font-sans"
     @click.self="emit('close')"
   >
-    <!-- ================= 离屏真实渲染源 (不受任何 CSS 缩放约束) ================= -->
+    <!-- 离屏真实未缩放渲染源 (固定标准 640px 物理排版宽度) -->
     <div
       class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1]"
       aria-hidden="true"
     >
-      <div ref="offscreenCardRef" class="w-[620px]">
+      <div ref="offscreenCardRef" class="w-[640px] max-w-[640px]">
         <ShareCard
           :post="post"
           :options="options"
@@ -311,7 +362,7 @@ watch(
       </div>
     </div>
 
-    <!-- ================= 模态框主体 ================= -->
+    <!-- 模态框主体 -->
     <div
       class="bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] w-full max-w-6xl overflow-hidden border border-slate-100"
     >
@@ -322,8 +373,8 @@ watch(
             <Sparkles class="w-5 h-5" />
           </div>
           <div>
-            <h2 class="text-base font-bold text-slate-900 leading-none">生成分享卡片</h2>
-            <p class="text-xs text-slate-400 mt-1">从 {{ post.platform.toUpperCase() }} 提取完整内容并高清渲染</p>
+            <h2 class="text-base font-bold text-slate-900 leading-none">QuickShare</h2>
+            <p class="text-xs text-slate-400 mt-1">从 {{ post.platform.toUpperCase() }} 提取内容并高清渲染</p>
           </div>
         </div>
 
@@ -337,110 +388,34 @@ watch(
 
       <!-- Main Body: 左右分栏 -->
       <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50 min-h-0">
-        <!-- 左侧：参数调整控制台 -->
-        <div class="w-full md:w-80 border-r border-slate-200/80 p-5 overflow-y-auto space-y-6 bg-white shrink-0">
-          <!-- 1. 主题选择 -->
-          <div class="space-y-2.5">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles class="w-3.5 h-3.5" />
+        <!-- 左侧：精简单列主题控制台 (宽度缩小为 w-44) -->
+        <div class="w-full md:w-44 border-r border-slate-200/80 p-3.5 overflow-y-auto space-y-4 bg-white shrink-0">
+          <!-- 1. 主题选择 (单列紧凑排列) -->
+          <div class="space-y-2">
+            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles class="w-3.5 h-3.5 text-sky-500" />
               卡片主题
             </label>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="flex flex-col gap-2">
               <button
                 v-for="theme in Object.values(PRESET_THEMES)"
                 :key="theme.id"
                 @click="selectTheme(theme.id)"
-                class="p-2.5 text-left rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer"
+                class="p-2 text-left rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer"
                 :class="[
                   options.themeId === theme.id
-                    ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/30 font-bold text-sky-900'
+                    ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/30 font-bold text-sky-900 shadow-sm'
                     : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
                 ]"
               >
-                <div class="h-4 w-full rounded-md shadow-inner" :class="theme.backgroundClass" />
-                <span class="truncate">{{ theme.name }}</span>
+                <div class="h-3.5 w-full rounded-md shadow-inner" :class="theme.backgroundClass" />
+                <span class="truncate text-[11px]">{{ theme.name }}</span>
               </button>
-            </div>
-          </div>
-
-          <!-- 2. 布局与间距 -->
-          <div class="space-y-3 pt-2 border-t border-slate-100">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Layout class="w-3.5 h-3.5" />
-              外层边距
-            </label>
-            <div class="grid grid-cols-4 gap-1.5">
-              <button
-                v-for="pad in [16, 24, 32, 48]"
-                :key="pad"
-                @click="options.padding = pad"
-                class="py-1.5 px-2 text-xs rounded-lg border text-center font-medium transition-colors cursor-pointer"
-                :class="[
-                  options.padding === pad
-                    ? 'border-sky-500 bg-sky-50 text-sky-600 font-bold'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                ]"
-              >
-                {{ pad }}px
-              </button>
-            </div>
-          </div>
-
-          <!-- 3. 文字大小缩放 -->
-          <div class="space-y-3 pt-2 border-t border-slate-100">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Type class="w-3.5 h-3.5" />
-              文字缩放
-            </label>
-            <div class="grid grid-cols-4 gap-1.5">
-              <button
-                v-for="scaleItem in [0.9, 1.0, 1.1, 1.2]"
-                :key="scaleItem"
-                @click="options.fontScale = scaleItem"
-                class="py-1.5 px-2 text-xs rounded-lg border text-center font-medium transition-colors cursor-pointer"
-                :class="[
-                  options.fontScale === scaleItem
-                    ? 'border-sky-500 bg-sky-50 text-sky-600 font-bold'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                ]"
-              >
-                {{ scaleItem }}x
-              </button>
-            </div>
-          </div>
-
-          <!-- 4. 开关项 -->
-          <div class="space-y-3 pt-2 border-t border-slate-100">
-            <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Sliders class="w-3.5 h-3.5" />
-              元素显示
-            </label>
-            <div class="space-y-2.5">
-              <label class="flex items-center justify-between text-xs text-slate-700 cursor-pointer">
-                <span class="flex items-center gap-1.5">
-                  <QrCode class="w-3.5 h-3.5 text-slate-400" />
-                  原文二维码
-                </span>
-                <input
-                  type="checkbox"
-                  v-model="options.showQrCode"
-                  class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer"
-                />
-              </label>
-
-              <label class="flex items-center justify-between text-xs text-slate-700 cursor-pointer">
-                <span>品牌水印</span>
-                <input
-                  type="checkbox"
-                  v-model="options.showWatermark"
-                  class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer"
-                />
-              </label>
             </div>
           </div>
         </div>
 
-        <!-- 右侧：纯图片交互画布区（光标锚定缩放 + 拖拽平移） -->
+        <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余) -->
         <div
           ref="viewportRef"
           class="flex-1 relative overflow-hidden bg-slate-900/5 select-none flex items-center justify-center min-h-0"
@@ -449,12 +424,12 @@ watch(
           @mousedown="handleMouseDown"
           @mousemove="handleMouseMove"
         >
-          <!-- 悬浮控制工具栏 -->
+          <!-- 悬浮控制工具栏 (纯 Icon + Tooltip) -->
           <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/95 backdrop-blur-md shadow-lg border border-slate-200/80 rounded-xl p-1 text-xs">
             <button
               @click.stop="zoomOut"
-              class="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
-              title="缩小 (向下滚轮)"
+              class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="缩小 (或 Meta+向下滚轮)"
             >
               <ZoomOut class="w-4 h-4" />
             </button>
@@ -463,45 +438,58 @@ watch(
             </span>
             <button
               @click.stop="zoomIn"
-              class="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
-              title="放大 (向上滚轮)"
+              class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="放大 (或 Meta+向上滚轮)"
             >
               <ZoomIn class="w-4 h-4" />
             </button>
-            <div class="w-[1px] h-3 bg-slate-200 mx-1" />
+
+            <div class="w-[1px] h-3.5 bg-slate-200 mx-1" />
+
+            <!-- 宽度自适应 -->
+            <button
+              @click.stop="fitToWidth"
+              class="p-2 hover:bg-sky-50 hover:text-sky-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="宽度自适应 (100% 宽度适配)"
+            >
+              <ArrowLeftRight class="w-4 h-4" />
+            </button>
+
+            <!-- 全图自适应 -->
             <button
               @click.stop="resetToFit"
-              class="px-2.5 py-1 hover:bg-sky-50 hover:text-sky-600 text-slate-700 rounded-lg transition-colors font-medium flex items-center gap-1 cursor-pointer"
-              title="自适应全图居中"
+              class="p-2 hover:bg-sky-50 hover:text-sky-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="全图自适应 (整张完整可见)"
             >
-              <Maximize2 class="w-3.5 h-3.5" />
-              自适应
+              <Maximize2 class="w-4 h-4" />
             </button>
+
+            <!-- 100% 原始大小 -->
             <button
               @click.stop="setOriginalSize"
-              class="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
-              title="100% 原始大小"
+              class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="100% 原始比例"
             >
-              <RotateCcw class="w-3.5 h-3.5" />
+              <RotateCcw class="w-4 h-4" />
             </button>
           </div>
 
-          <!-- 拖拽提示 Badge -->
-          <div class="absolute bottom-4 left-4 z-20 pointer-events-none px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-lg text-white text-[11px] flex items-center gap-1.5 opacity-80">
+          <!-- 交互提示 Badge -->
+          <div class="absolute bottom-4 left-4 z-20 pointer-events-none px-2.5 py-1 bg-black/50 backdrop-blur-md rounded-lg text-white text-[11px] flex items-center gap-1.5 opacity-80">
             <Move class="w-3 h-3" />
-            光标定位缩放 • 按住左键拖拽平移
+            滚轮上下平移 • Shift+滚轮左右 • Meta+滚轮缩放
           </div>
 
-          <!-- Loading 状态浮层 -->
+          <!-- Loading 状态 -->
           <div
             v-if="isRendering && !previewDataUrl"
             class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm text-slate-600 gap-2"
           >
             <Loader2 class="w-8 h-8 animate-spin text-sky-600" />
-            <span class="text-xs font-medium">正在生成高清卡片图片...</span>
+            <span class="text-xs font-medium">正在生成高清卡片...</span>
           </div>
 
-          <!-- 纯图片渲染展示层 -->
+          <!-- 纯图片渲染层 -->
           <div
             v-if="previewDataUrl"
             class="shrink-0"
@@ -526,10 +514,21 @@ watch(
       <!-- Footer: 操作栏 -->
       <div class="px-6 py-3.5 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
         <span class="text-xs text-slate-400">
-          已就绪 • 复制与下载均导出 2.5x Retina 级高分辨率完整长图
+          已就绪 • 2.5x Retina 超高清完整长图导出
         </span>
 
         <div class="flex items-center gap-3">
+          <!-- 复制链接按钮 -->
+          <button
+            @click="handleCopyUrl"
+            class="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Check v-if="copyUrlSuccess" class="w-4 h-4 text-emerald-500" />
+            <Link2 v-else class="w-4 h-4 text-slate-500" />
+            <span>{{ copyUrlSuccess ? '已复制链接' : '复制链接' }}</span>
+          </button>
+
+          <!-- 复制图片按钮 -->
           <button
             @click="handleCopy"
             :disabled="isCopying || isRendering"
@@ -541,6 +540,7 @@ watch(
             <span>{{ copySuccess ? '已复制到剪切板' : isCopying ? '正在复制...' : '复制图片' }}</span>
           </button>
 
+          <!-- 下载 PNG 按钮 -->
           <button
             @click="handleDownload"
             :disabled="isDownloading || isRendering"
