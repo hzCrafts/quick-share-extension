@@ -35,7 +35,7 @@ const generateQr = async () => {
 onMounted(generateQr);
 watch(() => [props.options.showQrCode, props.post.url], generateQr);
 
-// 平台图标/标识
+// 平台标识
 const platformLabel = computed(() => {
   switch (props.post.platform) {
     case 'x': return 'X (Twitter)';
@@ -49,15 +49,14 @@ const platformLabel = computed(() => {
 
 <template>
   <div
-    id="quick-share-export-container"
-    class="relative overflow-hidden transition-all duration-300"
+    class="relative overflow-hidden transition-all duration-300 select-text"
     :class="[
       currentTheme.backgroundClass,
       currentTheme.fontFamily === 'serif' ? 'font-serif-card' : 'font-sans-card'
     ]"
     :style="{
       padding: `${options.padding}px`,
-      width: '600px',
+      width: '620px',
     }"
   >
     <!-- 卡片主体容器 -->
@@ -69,11 +68,11 @@ const platformLabel = computed(() => {
       ]"
       :style="{
         borderRadius: `${options.cardRadius}px`,
-        padding: '24px',
+        padding: '28px',
       }"
     >
       <!-- Header: 作者信息 & 平台标识 -->
-      <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-black/5 dark:border-white/10">
         <div class="flex items-center gap-3 min-w-0">
           <img
             v-if="post.author.avatarUrl"
@@ -95,7 +94,7 @@ const platformLabel = computed(() => {
             <div class="font-bold text-base leading-snug truncate" :class="currentTheme.textClass">
               {{ post.author.name }}
             </div>
-            <div class="text-xs truncate" :class="currentTheme.subtextClass">
+            <div class="text-xs truncate opacity-75 mt-0.5" :class="currentTheme.subtextClass">
               {{ post.author.handle || post.createdAt || platformLabel }}
             </div>
           </div>
@@ -113,32 +112,47 @@ const platformLabel = computed(() => {
         </div>
       </div>
 
-      <!-- Content: 标题（如有）与正文 -->
-      <div class="space-y-3 mb-5">
+      <!-- Content: 标题（如有）与正文/图文流 -->
+      <div class="space-y-3 mb-6">
+        <!-- 标题 -->
         <h3
           v-if="post.title"
-          class="font-bold text-lg leading-snug"
+          class="font-extrabold text-xl leading-snug tracking-tight mb-3"
           :class="currentTheme.textClass"
         >
           {{ post.title }}
         </h3>
         
+        <!-- 1. 富文本图文混排模式 (优先保留原回答结构与图片穿插) -->
+        <div
+          v-if="post.contentHtml"
+          class="quick-share-rich-body leading-relaxed"
+          :class="currentTheme.textClass"
+          :style="{
+            fontSize: `${15 * options.fontScale}px`,
+            lineHeight: 1.7,
+          }"
+          v-html="post.contentHtml"
+        />
+
+        <!-- 2. 纯文本模式 (Fallback) -->
         <p
+          v-else
           class="whitespace-pre-wrap leading-relaxed tracking-normal text-sm"
           :class="currentTheme.textClass"
           :style="{
             fontSize: `${15 * options.fontScale}px`,
-            lineHeight: 1.6,
+            lineHeight: 1.7,
           }"
         >
           {{ post.content }}
         </p>
       </div>
 
-      <!-- Media: 图片网格（1~4张） -->
+      <!-- Media: 仅当非 HTML 模式且有独立 media 时渲染末尾网格 -->
       <div
-        v-if="post.media && post.media.length > 0"
-        class="grid gap-2 mb-5 rounded-xl overflow-hidden"
+        v-if="!post.contentHtml && post.media && post.media.length > 0"
+        class="grid gap-2 mb-6 rounded-xl overflow-hidden"
         :class="{
           'grid-cols-1': post.media.length === 1,
           'grid-cols-2': post.media.length >= 2,
@@ -160,7 +174,7 @@ const platformLabel = computed(() => {
 
       <!-- Footer: 时间戳、二维码与品牌水印 -->
       <div
-        class="pt-4 mt-2 border-t flex items-end justify-between gap-3 text-xs"
+        class="pt-4 border-t flex items-end justify-between gap-4 text-xs"
         :class="[
           currentTheme.borderClass,
           currentTheme.subtextClass
@@ -188,3 +202,64 @@ const platformLabel = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 富文本流内图片与段落排版 */
+:deep(.quick-share-rich-body p) {
+  margin-bottom: 0.85em;
+}
+
+:deep(.quick-share-rich-body blockquote) {
+  padding: 8px 16px;
+  margin: 12px 0;
+  border-left: 3px solid rgba(14, 165, 233, 0.6);
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 0 8px 8px 0;
+  opacity: 0.9;
+}
+
+:deep(.quick-share-rich-body .quick-share-rich-img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 14px auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+:deep(.quick-share-rich-body ul) {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.8em 0;
+}
+
+:deep(.quick-share-rich-body ol) {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.8em 0;
+}
+
+:deep(.quick-share-rich-body h2),
+:deep(.quick-share-rich-body h3) {
+  font-weight: 700;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+}
+
+:deep(.quick-share-rich-body pre),
+:deep(.quick-share-rich-body code) {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+:deep(.quick-share-rich-body pre) {
+  padding: 12px;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+:deep(.quick-share-rich-body code) {
+  padding: 2px 4px;
+}
+</style>

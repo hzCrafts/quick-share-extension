@@ -1,5 +1,5 @@
 import { BaseAdapter, type OnShareTrigger } from './base';
-import type { PostData, PostMedia } from '@/types/post';
+import type { PostData } from '@/types/post';
 
 export class ZhihuAdapter extends BaseAdapter {
   readonly platform = 'zhihu';
@@ -34,7 +34,7 @@ export class ZhihuAdapter extends BaseAdapter {
   }
 
   private scanAndInject(): void {
-    // 1. 适配回答项 / 列表项
+    // 1. 适配回答项 / 列表流 (AnswerItem, TopstoryItem, PinItem)
     const answerItems = document.querySelectorAll<HTMLElement>('.ContentItem, .AnswerItem, .TopstoryItem');
     answerItems.forEach((item) => {
       const actions = item.querySelector<HTMLElement>('.ContentItem-actions');
@@ -47,6 +47,8 @@ export class ZhihuAdapter extends BaseAdapter {
       wrapper.style.marginLeft = '12px';
 
       const btn = this.createShareButton(async () => {
+        // 先确保自动展开全文
+        await this.ensureExpanded(item);
         const postData = await this.extract(item);
         if (postData && this.onShareCallback) {
           this.onShareCallback(postData);
@@ -78,7 +80,7 @@ export class ZhihuAdapter extends BaseAdapter {
     });
 
     // 2. 适配专栏文章页 (zhuanlan.zhihu.com)
-    const articleHeader = document.querySelector<HTMLElement>('.Post-Header, .Post-NormalMain');
+    const articleHeader = document.querySelector<HTMLElement>('.Post-Header, .Post-NormalMain, .Post-Main');
     if (articleHeader && !articleHeader.querySelector('.quick-share-zhihu-wrapper')) {
       const wrapper = document.createElement('div');
       wrapper.className = 'quick-share-zhihu-wrapper';
@@ -107,6 +109,33 @@ export class ZhihuAdapter extends BaseAdapter {
     }
   }
 
+  /**
+   * 检查知乎回答是否折叠，若折叠则自动点击展开并等待完整内容加载
+   */
+  private async ensureExpanded(item: HTMLElement): Promise<void> {
+    const isCollapsed = item.querySelector('.RichContent.is-collapsed') || item.classList.contains('is-collapsed');
+    const moreBtn = item.querySelector<HTMLButtonElement>('.ContentItem-more, button.RichContent-collapsedText');
+
+    if (isCollapsed && moreBtn) {
+      moreBtn.click();
+
+      // 等待 DOM 展开完成（等待 is-collapsed 类移除或高度变化）
+      await new Promise<void>((resolve) => {
+        let attempts = 0;
+        const check = () => {
+          attempts++;
+          const stillCollapsed = item.querySelector('.RichContent.is-collapsed');
+          if (!stillCollapsed || attempts > 15) {
+            resolve();
+          } else {
+            setTimeout(check, 50);
+          }
+        };
+        setTimeout(check, 50);
+      });
+    }
+  }
+
   async extract(item: HTMLElement): Promise<PostData | null> {
     try {
       // 提取问题标题
@@ -116,29 +145,26 @@ export class ZhihuAdapter extends BaseAdapter {
       // 提取作者信息
       const authorEl = item.querySelector('.AuthorInfo-name .UserLink-link');
       const name = authorEl?.textContent?.trim() || '匿名用户';
+      const headlineEl = item.querySelector('.AuthorInfo-badgeText, .AuthorInfo-detail');
+      const handle = headlineEl?.textContent?.trim() || '知乎答主';
+
       const avatarEl = item.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar');
       const avatarUrl = avatarEl?.src;
 
-      // 提取正文
-      const contentEl = item.querySelector('.RichContent-inner, .RichText');
-      const content = contentEl?.textContent?.trim() || '';
+      // 提取富文本内容并清洗
+      const richContentEl = item.querySelector<HTMLElement>('.RichContent-inner, .RichText');
+      if (!richContentEl) return null;
 
-      // 提取配图
-      const mediaList: PostMedia[] = [];
-      const imgEls = item.querySelectorAll<HTMLImageElement>('.RichContent-inner img, .RichText img');
-      imgEls.forEach((img) => {
-        const rawSrc = img.getAttribute('data-original') || img.getAttribute('data-actualsrc') || img.src;
-        if (rawSrc && !rawSrc.includes('data:image/svg')) {
-          mediaList.push({
-            type: 'image',
-            url: rawSrc,
-          });
-        }
-      });
+      const contentHtml = this.cleanZhihuHtml(richContentEl);
+      const content = richContentEl.textContent?.trim() || '';
 
-      // 原文链接
+      // 提取原文链接
       const itemLink = item.querySelector<HTMLAnchorElement>('meta[itemprop="url"]') || item.querySelector<HTMLAnchorElement>('.ContentItem-title a');
       const postUrl = itemLink?.href || window.location.href;
+
+      // 提取时间
+      const timeEl = item.querySelector('.ContentItem-time, [itemprop="dateModified"], [itemprop="dateCreated"]');
+      const createdAt = timeEl?.textContent?.replace('发布于 ', '')?.trim() || new Date().toLocaleDateString('zh-CN');
 
       return {
         id: postUrl,
@@ -147,12 +173,12 @@ export class ZhihuAdapter extends BaseAdapter {
         title: title || undefined,
         author: {
           name,
-          handle: '知乎答主',
+          handle,
           avatarUrl,
         },
         content,
-        media: mediaList.length > 0 ? mediaList : undefined,
-        createdAt: new Date().toLocaleDateString('zh-CN'),
+        contentHtml,
+        createdAt,
       };
     } catch (err) {
       console.error('[QuickShare] Failed to extract zhihu answer data:', err);
@@ -167,8 +193,11 @@ export class ZhihuAdapter extends BaseAdapter {
       const name = authorEl?.textContent?.trim() || '知乎专栏作者';
       const avatarEl = document.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar');
       const avatarUrl = avatarEl?.src;
-      const contentEl = document.querySelector('.Post-RichText, .RichText');
-      const content = contentEl?.textContent?.trim() || '';
+      const richContentEl = document.querySelector<HTMLElement>('.Post-RichText, .RichText');
+      if (!richContentEl) return null;
+
+      const contentHtml = this.cleanZhihuHtml(richContentEl);
+      const content = richContentEl.textContent?.trim() || '';
 
       return {
         id: window.location.href,
@@ -181,11 +210,60 @@ export class ZhihuAdapter extends BaseAdapter {
           avatarUrl,
         },
         content,
+        contentHtml,
         createdAt: new Date().toLocaleDateString('zh-CN'),
       };
     } catch (err) {
       console.error('[QuickShare] Failed to extract zhihu article data:', err);
       return null;
     }
+  }
+
+  /**
+   * 清洗知乎 DOM，生成保真度高、图文混排结构完整的高清 HTML
+   */
+  private cleanZhihuHtml(rawEl: HTMLElement): string {
+    const clone = rawEl.cloneNode(true) as HTMLElement;
+
+    // 1. 移除无关噪音标签
+    const removeSelectors = [
+      '.ContentItem-more',
+      '.RichContent-collapsedText',
+      '.Button--plain',
+      '.LinkCard-content',
+      'button',
+      'noscript',
+      '.css-1g4ba74',
+    ];
+    removeSelectors.forEach((sel) => {
+      clone.querySelectorAll(sel).forEach((el) => el.remove());
+    });
+
+    // 2. 遍历处理所有图片，保留原位顺序并替换为高清原图
+    const images = clone.querySelectorAll<HTMLImageElement>('img');
+    images.forEach((img) => {
+      // 知乎真实高清大图通常在 data-original 或 data-actualsrc
+      const realSrc = 
+        img.getAttribute('data-original') || 
+        img.getAttribute('data-actualsrc') || 
+        img.getAttribute('data-rawwidth') && img.src ||
+        img.src;
+
+      if (realSrc && !realSrc.startsWith('data:image/svg')) {
+        img.src = realSrc;
+        // 清理原有内联写死的高度/宽度
+        img.removeAttribute('style');
+        img.removeAttribute('width');
+        img.removeAttribute('height');
+        img.className = 'quick-share-rich-img';
+        img.setAttribute('crossorigin', 'anonymous');
+      } else if (realSrc.includes('emoji')) {
+        // 表情图片
+        img.className = 'inline-block w-4 h-4 align-text-bottom mx-0.5';
+      }
+    });
+
+    // 3. 规范化段落与结构
+    return clone.innerHTML;
   }
 }

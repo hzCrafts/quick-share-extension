@@ -19,6 +19,7 @@ export interface PostData {
   author: PostAuthor;
   title?: string;
   content: string;
+  contentHtml?: string;
   media?: PostMedia[];
   createdAt?: string;
   stats?: {
