@@ -135,189 +135,188 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 </script>
 
 <template>
+  <!-- 卡片主体容器 (纯净单层 640px 容器，无多余外框) -->
   <div
-    class="qs-card-wrapper"
+    class="qs-card"
     :style="themeCssVars"
   >
-    <!-- 卡片主体容器 -->
-    <div class="qs-card-inner">
-      <!-- Header: 作者信息 & 站点 Favicon 标识 -->
-      <div class="qs-card-header">
-        <div class="qs-author-box">
-          <img
-            v-if="post.author.avatarUrl"
-            :src="post.author.avatarUrl"
-            alt="avatar"
-            class="qs-avatar-img"
-            :style="avatarRadiusStyle"
-            crossorigin="anonymous"
-          />
-          <div
-            v-else
-            class="qs-avatar-fallback"
-            :style="avatarRadiusStyle"
-          >
-            {{ post.author.name.slice(0, 1) }}
-          </div>
-
-          <div class="qs-author-meta">
-            <div class="qs-author-name">
-              {{ post.author.name }}
-            </div>
-            <div
-              v-if="post.author.handle"
-              class="qs-author-handle"
-            >
-              {{ post.author.handle }}
-            </div>
-          </div>
+    <!-- Header: 作者信息 & 站点 Favicon 标识 -->
+    <div class="qs-card-header">
+      <div class="qs-author-box">
+        <img
+          v-if="post.author.avatarUrl"
+          :src="post.author.avatarUrl"
+          alt="avatar"
+          class="qs-avatar-img"
+          :style="avatarRadiusStyle"
+          crossorigin="anonymous"
+        />
+        <div
+          v-else
+          class="qs-avatar-fallback"
+          :style="avatarRadiusStyle"
+        >
+          {{ post.author.name.slice(0, 1) }}
         </div>
 
-        <!-- 平台 Favicon Badge -->
-        <div
-          class="qs-platform-badge"
-          :style="platformConfig.style"
-        >
-          <img
-            v-if="platformConfig.faviconUrl"
-            :src="platformConfig.faviconUrl"
-            alt="icon"
-            class="qs-platform-icon"
-            crossorigin="anonymous"
-            @error="(e: any) => e.target.style.display = 'none'"
-          />
-          <span>{{ platformConfig.name }}</span>
+        <div class="qs-author-meta">
+          <div class="qs-author-name">
+            {{ post.author.name }}
+          </div>
+          <div
+            v-if="post.author.handle"
+            class="qs-author-handle"
+          >
+            {{ post.author.handle }}
+          </div>
         </div>
       </div>
 
-      <!-- Content: 标题（如有）与正文/图文流 -->
-      <div class="qs-card-content">
-        <!-- 1. AI 对话场景：用户提问 Prompt (纯 CSS 变量毛玻璃背景与边框) -->
-        <div
-          v-if="isAiPlatform && (post.title || post.promptHtml)"
-          class="qs-prompt-container"
-        >
-          <div class="qs-prompt-header">
-            <span class="qs-prompt-dot"></span>
-            Prompt
-          </div>
-          <!-- 富文本 Prompt (支持原样文本、全宽高清图片与文件卡片) -->
-          <div
-            v-if="post.promptHtml"
-            class="quick-share-prompt-body"
-            v-html="post.promptHtml"
-          />
-          <!-- 纯文本 Prompt 兜底 -->
-          <div
-            v-else
-            class="qs-prompt-plain"
-          >
-            {{ post.title }}
-          </div>
-        </div>
+      <!-- 平台 Favicon Badge (非 AI 对话平台展示，AI 场景左侧专属头像与品牌已足够) -->
+      <div
+        v-if="!isAiPlatform"
+        class="qs-platform-badge"
+        :style="platformConfig.style"
+      >
+        <img
+          v-if="platformConfig.faviconUrl"
+          :src="platformConfig.faviconUrl"
+          alt="icon"
+          class="qs-platform-icon"
+          crossorigin="anonymous"
+          @error="(e: any) => e.target.style.display = 'none'"
+        />
+        <span>{{ platformConfig.name }}</span>
+      </div>
+    </div>
 
-        <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
-        <h3
-          v-else-if="post.title"
-          class="qs-post-title"
+    <!-- Content: 标题（如有）与正文/图文流 -->
+    <div class="qs-card-content">
+      <!-- 1. AI 对话场景：用户提问 Prompt (纯 CSS 变量毛玻璃背景与边框) -->
+      <div
+        v-if="isAiPlatform && (post.title || post.promptHtml)"
+        class="qs-prompt-container"
+      >
+        <div class="qs-prompt-header">
+          <span class="qs-prompt-dot"></span>
+          Prompt
+        </div>
+        <!-- 富文本 Prompt (支持原样文本、全宽高清图片与文件卡片) -->
+        <div
+          v-if="post.promptHtml"
+          class="quick-share-prompt-body"
+          v-html="post.promptHtml"
+        />
+        <!-- 纯文本 Prompt 兜底 -->
+        <div
+          v-else
+          class="qs-prompt-plain"
         >
           {{ post.title }}
-        </h3>
-        
-        <!-- 1. 划选摘录模式：保留原 DOM 格式，支持段落内水平渐变 + 段落外垂直渐变 -->
-        <div v-if="post.isExcerpt" class="qs-excerpt-wrapper">
-          <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
-          <div
-            v-if="post.excerptBeforeHtml"
-            class="quick-share-excerpt-top-fade quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.excerptBeforeHtml"
-          />
-
-          <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
-          <div
-            class="quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.contentHtml || post.content"
-          />
-
-          <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
-          <div
-            v-if="post.excerptAfterHtml"
-            class="quick-share-excerpt-bottom-fade quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.excerptAfterHtml"
-          />
         </div>
-
-        <!-- 2. 全文分享模式 -->
-        <template v-else>
-          <!-- 富文本图文混排模式 -->
-          <div
-            v-if="post.contentHtml"
-            class="quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.contentHtml"
-          />
-
-          <!-- 纯文本模式 -->
-          <p
-            v-else
-            class="qs-plain-content"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-          >
-            {{ post.content }}
-          </p>
-        </template>
       </div>
 
-      <!-- Media: X / 纯文本模式下的图片 (100% 宽度，高度自动撑高) -->
-      <div
-        v-if="!post.contentHtml && post.media && post.media.length > 0"
-        class="qs-media-gallery"
+      <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
+      <h3
+        v-else-if="post.title"
+        class="qs-post-title"
       >
+        {{ post.title }}
+      </h3>
+      
+      <!-- 1. 划选摘录模式：保留原 DOM 格式，支持段落内水平渐变 + 段落外垂直渐变 -->
+      <div v-if="post.isExcerpt" class="qs-excerpt-wrapper">
+        <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
         <div
-          v-for="(item, idx) in post.media"
-          :key="idx"
-          class="qs-media-item"
-        >
-          <img
-            :src="item.url"
-            alt="media"
-            class="qs-media-img"
-            crossorigin="anonymous"
-          />
-        </div>
+          v-if="post.excerptBeforeHtml"
+          class="quick-share-excerpt-top-fade quick-share-rich-body"
+          :style="{
+            fontSize: `${15 * options.fontScale}px`,
+            lineHeight: 1.7,
+          }"
+          v-html="post.excerptBeforeHtml"
+        />
+
+        <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
+        <div
+          class="quick-share-rich-body"
+          :style="{
+            fontSize: `${15 * options.fontScale}px`,
+            lineHeight: 1.7,
+          }"
+          v-html="post.contentHtml || post.content"
+        />
+
+        <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
+        <div
+          v-if="post.excerptAfterHtml"
+          class="quick-share-excerpt-bottom-fade quick-share-rich-body"
+          :style="{
+            fontSize: `${15 * options.fontScale}px`,
+            lineHeight: 1.7,
+          }"
+          v-html="post.excerptAfterHtml"
+        />
       </div>
 
-      <!-- Footer: 清洗后 URL 链接与品牌水印 -->
-      <div class="qs-card-footer">
-        <div class="qs-footer-info">
-          <!-- 干净清晰的 URL 链接（非私有 AI 对话时展示，便于 OCR 与直接点击） -->
-          <div
-            v-if="post.url && !isAiPlatform"
-            class="qs-footer-url"
-          >
-            {{ post.url }}
-          </div>
-          <div v-if="options.showWatermark" class="qs-footer-watermark">
-            Shared via QuickShare
-          </div>
+      <!-- 2. 全文分享模式 -->
+      <template v-else>
+        <!-- 富文本图文混排模式 -->
+        <div
+          v-if="post.contentHtml"
+          class="quick-share-rich-body"
+          :style="{
+            fontSize: `${15 * options.fontScale}px`,
+            lineHeight: 1.7,
+          }"
+          v-html="post.contentHtml"
+        />
+
+        <!-- 纯文本模式 -->
+        <p
+          v-else
+          class="qs-plain-content"
+          :style="{
+            fontSize: `${15 * options.fontScale}px`,
+            lineHeight: 1.7,
+          }"
+        >
+          {{ post.content }}
+        </p>
+      </template>
+    </div>
+
+    <!-- Media: X / 纯文本模式下的图片 (100% 宽度，高度自动撑高) -->
+    <div
+      v-if="!post.contentHtml && post.media && post.media.length > 0"
+      class="qs-media-gallery"
+    >
+      <div
+        v-for="(item, idx) in post.media"
+        :key="idx"
+        class="qs-media-item"
+      >
+        <img
+          :src="item.url"
+          alt="media"
+          class="qs-media-img"
+          crossorigin="anonymous"
+        />
+      </div>
+    </div>
+
+    <!-- Footer: 清洗后 URL 链接与品牌水印 -->
+    <div class="qs-card-footer">
+      <div class="qs-footer-info">
+        <!-- 干净清晰的 URL 链接（非私有 AI 对话时展示，便于 OCR 与直接点击） -->
+        <div
+          v-if="post.url && !isAiPlatform"
+          class="qs-footer-url"
+        >
+          {{ post.url }}
+        </div>
+        <div v-if="options.showWatermark" class="qs-footer-watermark">
+          Shared via QuickShare
         </div>
       </div>
     </div>
@@ -325,24 +324,14 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 </template>
 
 <style scoped>
-/* 卡片外层与包裹容器 (基于 CSS Variables) */
-.qs-card-wrapper {
+/* 卡片主体容器 (纯净单层 640px 容器，支持主题克制渐变背景与柔和投影) */
+.qs-card {
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
   user-select: text;
-  max-width: 640px;
   width: 640px;
-  background: var(--qs-outer-bg);
-  font-family: var(--qs-font-family);
-  padding: var(--qs-padding);
-}
-
-/* 卡片主体 */
-.qs-card-inner {
-  box-sizing: border-box;
-  width: 100%;
-  overflow: hidden;
+  max-width: 640px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -352,8 +341,9 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   backdrop-filter: var(--qs-card-backdrop-filter);
   -webkit-backdrop-filter: var(--qs-card-backdrop-filter);
   border-radius: var(--qs-card-radius);
-  padding: 28px;
+  padding: var(--qs-padding);
   color: var(--qs-text-primary);
+  font-family: var(--qs-font-family);
 }
 
 /* Header */
@@ -379,8 +369,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   height: 44px;
   object-fit: cover;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: none;
 }
 
 .qs-avatar-fallback {
@@ -691,21 +681,55 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 }
 
 :deep(.quick-share-rich-body pre),
-:deep(.quick-share-rich-body code) {
-  background-color: var(--qs-code-bg);
-  color: var(--qs-code-text);
-  border-radius: 6px;
+:deep(.quick-share-rich-body code),
+:deep(.quick-share-rich-body code-block),
+:deep(.quick-share-rich-body [class*="code-block"]),
+:deep(.quick-share-rich-body [class*="code-container"]) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-:deep(.quick-share-rich-body pre) {
-  padding: 12px;
+:deep(.quick-share-rich-body pre),
+:deep(.quick-share-rich-body code-block),
+:deep(.quick-share-rich-body [class*="code-block"]) {
+  background-color: var(--qs-code-bg);
+  color: var(--qs-code-text);
+  border-radius: 8px;
+  padding: 12px 14px;
   margin: 12px 0;
-  overflow-x: auto;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  word-wrap: break-word !important;
 }
 
-:deep(.quick-share-rich-body code) {
-  padding: 2px 5px;
+:deep(.quick-share-rich-body pre *),
+:deep(.quick-share-rich-body pre code),
+:deep(.quick-share-rich-body code-block *),
+:deep(.quick-share-rich-body [class*="code-block"] *) {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
+  word-wrap: break-word !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 行内普通 code 标签 (非 pre 内部) */
+:deep(.quick-share-rich-body :not(pre) > code),
+:deep(.quick-share-rich-body p code),
+:deep(.quick-share-rich-body li code) {
+  background-color: var(--qs-code-bg);
+  color: var(--qs-code-text);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.9em;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
 }
 
 /* 表格排版与边框美化 */

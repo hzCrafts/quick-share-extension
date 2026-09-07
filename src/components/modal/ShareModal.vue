@@ -3,26 +3,22 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from
 import type { PostData } from '@/types/post';
 import { type CardRenderOptions, type CardThemeId, PRESET_THEMES } from '@/types/theme';
 import ShareCard from '@/components/card/ShareCard.vue';
-import { domToBlob } from 'modern-screenshot';
-import { sanitizeDomForScreenshot, copyCardToClipboard, downloadCardAsPng } from '@/utils/exporter';
+import { renderCardToCanvas, copyCardToClipboard, downloadCardAsPng } from '@/utils/exporter';
+import { getLastCardTheme, setLastCardTheme } from '@/utils/storage';
 import { 
   X, 
   Copy, 
   Download, 
   Check, 
-  Sliders, 
   Sparkles, 
-  QrCode, 
-  Type,
-  Layout,
-  Maximize2,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  Loader2,
-  Move,
-  ArrowLeftRight,
-  Link2
+  Maximize2, 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  Loader2, 
+  Move, 
+  ArrowLeftRight, 
+  Link2 
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -101,17 +97,13 @@ const triggerRender = () => {
       // 让出事件循环主线程，确保 Loading 动画即时平滑绘制
       await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 16)));
 
-      // 净化待导出 DOM，避免 CSS 语法报错
-      sanitizeDomForScreenshot(offscreenCardRef.value);
-
-      const blob = await domToBlob(offscreenCardRef.value, {
+      const canvas = await renderCardToCanvas(offscreenCardRef.value, {
         scale: previewScale,
-        quality: 0.95,
-        type: 'image/png',
-        font: false, // 禁用全站外部超大字体嵌入，极大提升渲染速度
-        features: {
-          removeControlCharacter: true,
-        },
+        cardRadius: options.cardRadius,
+      });
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), 'image/png', 0.95);
       });
 
       if (blob) {
@@ -162,7 +154,6 @@ const resetToFit = () => {
     const scaleX = vWidth / imageNaturalWidth.value;
     const scaleY = vHeight / imageNaturalHeight.value;
     const calculatedFit = Math.min(scaleX, scaleY, 1);
-    // 允许任意小缩放比（0.01 起步），让超长图完整一览全貌
     fitScale.value = Math.max(0.01, Number(calculatedFit.toFixed(4)));
     scale.value = fitScale.value;
     translateX.value = 0;
@@ -289,7 +280,11 @@ const handleCopy = async () => {
   if (!offscreenCardRef.value) return;
   try {
     isCopying.value = true;
-    await copyCardToClipboard(offscreenCardRef.value, { scale: 2.5, quality: 0.98 });
+    await copyCardToClipboard(offscreenCardRef.value, {
+      scale: 2.5,
+      quality: 0.98,
+      cardRadius: options.cardRadius,
+    });
     copySuccess.value = true;
     setTimeout(() => {
       copySuccess.value = false;
@@ -311,7 +306,7 @@ const handleDownload = async () => {
     await downloadCardAsPng(
       offscreenCardRef.value,
       `quick-share-${platform}-${Date.now()}.png`,
-      { scale: 2.5, quality: 0.98 }
+      { scale: 2.5, quality: 0.98, cardRadius: options.cardRadius }
     );
   } catch (err) {
     console.error('[QuickShare] 下载失败:', err);
@@ -323,11 +318,18 @@ const handleDownload = async () => {
 
 const selectTheme = (themeId: CardThemeId) => {
   options.themeId = themeId;
+  setLastCardTheme(themeId);
 };
 
 let resizeObserver: ResizeObserver | null = null;
 
-onMounted(() => {
+onMounted(async () => {
+  // 恢复上次选中的卡片主题
+  const savedTheme = await getLastCardTheme();
+  if (savedTheme && PRESET_THEMES[savedTheme]) {
+    options.themeId = savedTheme;
+  }
+
   if (props.post) {
     triggerRender();
   }
@@ -353,6 +355,18 @@ onUnmounted(() => {
 });
 
 watch(
+  () => props.visible,
+  async (newVal) => {
+    if (newVal) {
+      const savedTheme = await getLastCardTheme();
+      if (savedTheme && PRESET_THEMES[savedTheme]) {
+        options.themeId = savedTheme;
+      }
+    }
+  }
+);
+
+watch(
   [
     () => options.themeId,
     () => options.padding,
@@ -371,16 +385,17 @@ watch(
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm transition-opacity text-slate-800 font-sans"
+    class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/60 dark:bg-black/80 backdrop-blur-sm transition-opacity text-slate-800 dark:text-slate-100 font-sans pointer-events-auto select-none"
     @click.self="emit('close')"
   >
     <!-- 离屏真实未缩放渲染源 (固定标准 640px 物理排版宽度) -->
     <div
       v-if="post"
-      class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1]"
+      class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1] bg-transparent"
+      style="background: transparent !important;"
       aria-hidden="true"
     >
-      <div ref="offscreenCardRef" class="w-[640px] max-w-[640px]">
+      <div ref="offscreenCardRef" class="w-[640px] max-w-[640px] bg-transparent" style="background: transparent !important;">
         <ShareCard
           :post="post"
           :options="options"
@@ -390,52 +405,75 @@ watch(
 
     <!-- 模态框主体 -->
     <div
-      class="bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] w-full max-w-6xl overflow-hidden border border-slate-100"
+      class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col h-[92vh] w-full max-w-6xl overflow-hidden border border-slate-100 dark:border-slate-800 transition-colors"
     >
       <!-- Header -->
-      <div class="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+      <div class="px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-white dark:bg-slate-900">
         <div class="flex items-center gap-2.5">
-          <div class="p-1.5 bg-sky-50 text-sky-600 rounded-lg">
+          <div class="p-1.5 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 rounded-lg">
             <Sparkles class="w-5 h-5" />
           </div>
           <div>
-            <h2 class="text-base font-bold text-slate-900 leading-none">QuickShare</h2>
-            <p class="text-xs text-slate-400 mt-1">从 {{ platformName }} 提取内容并高清渲染</p>
+            <h2 class="text-base font-bold text-slate-900 dark:text-white leading-none">QuickShare</h2>
+            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">从 {{ platformName }} 提取内容并高清渲染</p>
           </div>
         </div>
 
         <button
           @click="emit('close')"
-          class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+          class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
         >
           <X class="w-5 h-5" />
         </button>
       </div>
 
       <!-- Main Body: 左右分栏 -->
-      <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50 min-h-0">
-        <!-- 左侧：精简单列主题控制台 (宽度缩小为 w-44) -->
-        <div class="w-full md:w-44 border-r border-slate-200/80 p-3.5 overflow-y-auto space-y-4 bg-white shrink-0">
+      <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
+        <!-- 左侧：精简单列主题控制台 (宽度 w-48) -->
+        <div class="w-full md:w-48 border-r border-slate-200/80 dark:border-slate-800 p-3 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 shrink-0">
           <!-- 1. 主题选择 (单列紧凑排列) -->
           <div class="space-y-2">
-            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5 px-1">
               <Sparkles class="w-3.5 h-3.5 text-sky-500" />
               卡片主题
             </label>
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-1.5">
               <button
                 v-for="theme in Object.values(PRESET_THEMES)"
                 :key="theme.id"
                 @click="selectTheme(theme.id)"
-                class="p-2 text-left rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer"
+                class="group p-2 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer text-left relative overflow-hidden"
                 :class="[
                   options.themeId === theme.id
-                    ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/30 font-bold text-sky-900 shadow-sm'
-                    : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
+                    ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/40 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-semibold shadow-sm'
+                    : 'border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/80'
                 ]"
               >
-                <div class="h-3.5 w-full rounded-md shadow-inner" :style="{ background: theme.tokens.outerBackground }" />
-                <span class="truncate text-[11px]">{{ theme.name }}</span>
+                <!-- Mini Card Skeleton Preview -->
+                <div
+                  class="w-full h-8 rounded-lg overflow-hidden p-1.5 flex flex-col justify-between shadow-sm relative transition-transform group-hover:scale-[1.02]"
+                  :style="{
+                    background: theme.tokens.cardBackground,
+                    color: theme.tokens.textPrimary
+                  }"
+                >
+                  <!-- Top mini row: avatar dot + name bar -->
+                  <div class="flex items-center gap-1">
+                    <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" />
+                    <div class="w-8 h-1 rounded-full bg-current opacity-40" />
+                  </div>
+                  <!-- Bottom mini row: text line skeleton -->
+                  <div class="w-12 h-1 rounded-full bg-current opacity-30" />
+                </div>
+
+                <!-- Theme Name -->
+                <div class="flex items-center justify-between gap-1 w-full px-0.5">
+                  <span class="truncate text-[11px] leading-tight font-medium">{{ theme.name }}</span>
+                  <span
+                    v-if="options.themeId === theme.id"
+                    class="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"
+                  />
+                </div>
               </button>
             </div>
           </div>
@@ -444,38 +482,38 @@ watch(
         <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余) -->
         <div
           ref="viewportRef"
-          class="flex-1 relative overflow-hidden bg-slate-900/5 select-none flex items-center justify-center min-h-0"
+          class="flex-1 relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/70 select-none flex items-center justify-center min-h-0"
           :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
           @wheel.prevent="handleWheel"
           @mousedown="handleMouseDown"
           @mousemove="handleMouseMove"
         >
           <!-- 悬浮控制工具栏 (纯 Icon + Tooltip) -->
-          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/95 backdrop-blur-md shadow-lg border border-slate-200/80 rounded-xl p-1 text-xs">
+          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-lg border border-slate-200/80 dark:border-slate-800 rounded-xl p-1 text-xs">
             <button
               @click.stop="zoomOut"
-              class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
               title="缩小 (或 Meta+向下滚轮)"
             >
               <ZoomOut class="w-4 h-4" />
             </button>
-            <span class="px-2 font-mono text-slate-600 text-[11px] min-w-12 text-center">
+            <span class="px-2 font-mono text-slate-600 dark:text-slate-300 text-[11px] min-w-12 text-center">
               {{ Math.round(scale * 100) }}%
             </span>
             <button
               @click.stop="zoomIn"
-              class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
               title="放大 (或 Meta+向上滚轮)"
             >
               <ZoomIn class="w-4 h-4" />
             </button>
 
-            <div class="w-[1px] h-3.5 bg-slate-200 mx-1" />
+            <div class="w-[1px] h-3.5 bg-slate-200 dark:bg-slate-700 mx-1" />
 
             <!-- 宽度自适应 -->
             <button
               @click.stop="fitToWidth"
-              class="p-2 hover:bg-sky-50 hover:text-sky-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              class="p-2 hover:bg-sky-50 dark:hover:bg-sky-950/60 hover:text-sky-600 dark:hover:text-sky-400 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
               title="宽度自适应 (100% 宽度适配)"
             >
               <ArrowLeftRight class="w-4 h-4" />
@@ -484,7 +522,7 @@ watch(
             <!-- 全图自适应 -->
             <button
               @click.stop="resetToFit"
-              class="p-2 hover:bg-sky-50 hover:text-sky-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              class="p-2 hover:bg-sky-50 dark:hover:bg-sky-950/60 hover:text-sky-600 dark:hover:text-sky-400 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
               title="全图自适应 (整张完整可见)"
             >
               <Maximize2 class="w-4 h-4" />
@@ -493,7 +531,7 @@ watch(
             <!-- 100% 原始大小 -->
             <button
               @click.stop="setOriginalSize"
-              class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
               title="100% 原始比例"
             >
               <RotateCcw class="w-4 h-4" />
@@ -501,7 +539,7 @@ watch(
           </div>
 
           <!-- 交互提示 Badge -->
-          <div class="absolute bottom-4 left-4 z-20 pointer-events-none px-2.5 py-1 bg-black/50 backdrop-blur-md rounded-lg text-white text-[11px] flex items-center gap-1.5 opacity-80">
+          <div class="absolute bottom-4 left-4 z-20 pointer-events-none px-2.5 py-1 bg-black/50 dark:bg-black/75 backdrop-blur-md rounded-lg text-white text-[11px] flex items-center gap-1.5 opacity-80">
             <Move class="w-3 h-3" />
             滚轮上下平移 • Shift+滚轮左右 • Meta+滚轮缩放
           </div>
@@ -509,7 +547,7 @@ watch(
           <!-- Loading 状态 (包含数据提取与离屏高清渲染) -->
           <div
             v-if="(!post || isExtracting || isRendering) && !previewDataUrl"
-            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm text-slate-700 gap-2.5 transition-opacity"
+            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-sm text-slate-700 dark:text-slate-200 gap-2.5 transition-opacity"
           >
             <Loader2 class="w-8 h-8 animate-spin text-sky-600 will-change-transform" />
             <span class="text-xs font-semibold tracking-wide">
@@ -540,8 +578,8 @@ watch(
       </div>
 
       <!-- Footer: 操作栏 -->
-      <div class="px-6 py-3.5 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
-        <span class="text-xs text-slate-400">
+      <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+        <span class="text-xs text-slate-400 dark:text-slate-500">
           {{ !post || isExtracting || isRendering ? '处理中 • 请稍候...' : '已就绪 • 2.5x Retina 超高清完整长图导出' }}
         </span>
 
@@ -551,10 +589,10 @@ watch(
             v-if="!isAiPlatform && post && post.url"
             @click="handleCopyUrl"
             :disabled="!post || isExtracting || isRendering"
-            class="px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            class="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             <Check v-if="copyUrlSuccess" class="w-4 h-4 text-emerald-500" />
-            <Link2 v-else class="w-4 h-4 text-slate-500" />
+            <Link2 v-else class="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>{{ copyUrlSuccess ? '已复制链接' : '复制链接' }}</span>
           </button>
 
@@ -562,10 +600,10 @@ watch(
           <button
             @click="handleCopy"
             :disabled="!post || isExtracting || isRendering || isCopying"
-            class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Check v-if="copySuccess" class="w-4 h-4 text-emerald-500" />
-            <Loader2 v-else-if="isCopying" class="w-4 h-4 animate-spin text-slate-500" />
+            <Loader2 v-else-if="isCopying" class="w-4 h-4 animate-spin text-slate-500 dark:text-slate-400" />
             <Copy v-else class="w-4 h-4" />
             <span>{{ copySuccess ? '已复制到剪切板' : isCopying ? '正在复制...' : '复制图片' }}</span>
           </button>
@@ -574,7 +612,7 @@ watch(
           <button
             @click="handleDownload"
             :disabled="!post || isExtracting || isRendering || isDownloading"
-            class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-sm font-semibold shadow-md shadow-sky-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-sm font-semibold shadow-md shadow-sky-500/20 dark:shadow-sky-950/40 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Loader2 v-if="isDownloading" class="w-4 h-4 animate-spin" />
             <Download v-else class="w-4 h-4" />

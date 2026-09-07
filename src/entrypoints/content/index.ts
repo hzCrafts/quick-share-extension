@@ -30,13 +30,27 @@ export default defineContentScript({
 
     let appInstance: any = null;
 
+    let hostEl: HTMLElement | null = null;
+
     // 创建 Shadow DOM UI 容器，将 Tailwind 样式隔离注入
     const ui = await createShadowRootUi(ctx, {
       name: 'quick-share-ui-container',
-      position: 'inline',
+      position: 'overlay',
+      zIndex: 2147483647,
       anchor: 'body',
       append: 'last',
       onMount: (container) => {
+        const root = container.getRootNode() as ShadowRoot;
+        hostEl = (root?.host as HTMLElement) || null;
+        if (hostEl) {
+          hostEl.style.setProperty('position', 'fixed', 'important');
+          hostEl.style.setProperty('top', '0', 'important');
+          hostEl.style.setProperty('left', '0', 'important');
+          hostEl.style.setProperty('width', '100vw', 'important');
+          hostEl.style.setProperty('height', '100vh', 'important');
+          hostEl.style.setProperty('z-index', '2147483647', 'important');
+          hostEl.style.setProperty('pointer-events', 'none', 'important');
+        }
         const app = createApp(App);
         appInstance = app.mount(container);
         return app;
@@ -47,6 +61,17 @@ export default defineContentScript({
     });
 
     ui.mount();
+
+    if (ui.uiContainer) {
+      hostEl = ui.uiContainer;
+      hostEl.style.setProperty('position', 'fixed', 'important');
+      hostEl.style.setProperty('top', '0', 'important');
+      hostEl.style.setProperty('left', '0', 'important');
+      hostEl.style.setProperty('width', '100vw', 'important');
+      hostEl.style.setProperty('height', '100vh', 'important');
+      hostEl.style.setProperty('z-index', '2147483647', 'important');
+      hostEl.style.setProperty('pointer-events', 'none', 'important');
+    }
 
     // 启动站点适配器按钮注入监听
     adapter.start((postData) => {

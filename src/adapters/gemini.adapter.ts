@@ -77,25 +77,20 @@ export class GeminiAdapter extends BaseAdapter {
     );
 
     responses.forEach((resEl) => {
-      // 寻找底部操作栏 (response-action-bar, .action-bar, etc.)
+      // 寻找底部操作栏 (.buttons-container-v2, response-action-bar, etc.)
       const actionsBar =
+        resEl.querySelector<HTMLElement>('.buttons-container-v2') ||
+        resEl.querySelector<HTMLElement>('response-action-bar .buttons-container-v2') ||
         resEl.querySelector<HTMLElement>('response-action-bar, .action-bar, .response-footer, div[class*="action-bar"]') ||
         resEl.querySelector<HTMLElement>('message-content + *');
 
-      if (!actionsBar || actionsBar.querySelector('.quick-share-gemini-wrapper')) return;
+      if (!actionsBar || actionsBar.querySelector('.quick-share-gemini-btn, .quick-share-gemini-wrapper')) return;
 
-      const wrapper = document.createElement('div');
-      wrapper.className = 'quick-share-gemini-wrapper';
-      wrapper.style.display = 'inline-flex';
-      wrapper.style.alignItems = 'center';
-      wrapper.style.marginLeft = '4px';
-
-      const btn = this.createShareButton(() => {
-        if (this.onShareCallback) {
-          this.onShareCallback(this.extract(resEl));
-        }
-      }, 'QuickShare');
-
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-share-gemini-btn mdc-icon-button mat-mdc-icon-button mat-mdc-button-base';
+      btn.setAttribute('aria-label', 'QuickShare 卡片分享');
+      btn.setAttribute('title', 'QuickShare 卡片分享');
       btn.style.display = 'inline-flex';
       btn.style.alignItems = 'center';
       btn.style.justifyContent = 'center';
@@ -103,9 +98,20 @@ export class GeminiAdapter extends BaseAdapter {
       btn.style.border = 'none';
       btn.style.cursor = 'pointer';
       btn.style.color = '#70757a';
-      btn.style.padding = '4px 6px';
-      btn.style.borderRadius = '6px';
+      btn.style.width = '32px';
+      btn.style.height = '32px';
+      btn.style.borderRadius = '50%';
+      btn.style.padding = '0';
+      btn.style.margin = '0 2px';
       btn.style.transition = 'color 0.2s, background-color 0.2s';
+
+      btn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+          <circle cx="9" cy="9" r="2"/>
+          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+        </svg>
+      `;
 
       btn.onmouseenter = () => {
         btn.style.color = '#1a73e8';
@@ -116,8 +122,21 @@ export class GeminiAdapter extends BaseAdapter {
         btn.style.backgroundColor = 'transparent';
       };
 
-      wrapper.appendChild(btn);
-      actionsBar.appendChild(wrapper);
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.onShareCallback) {
+          this.onShareCallback(this.extract(resEl));
+        }
+      };
+
+      // 优先插入到 .spacer 前或 .more-menu-button-container 旁边
+      const spacer = actionsBar.querySelector('.spacer');
+      if (spacer) {
+        actionsBar.insertBefore(btn, spacer);
+      } else {
+        actionsBar.appendChild(btn);
+      }
     });
   }
 
@@ -349,6 +368,10 @@ export class GeminiAdapter extends BaseAdapter {
       '.user-query-container',
       '.query-text',
       'h2.cdk-visually-hidden',
+      '.copy-button',
+      '[class*="copy-button"]',
+      '.code-block-decoration button',
+      '[data-test-id*="copy"]',
     ];
     removeSelectors.forEach((sel) => {
       clone.querySelectorAll(sel).forEach((el) => el.remove());

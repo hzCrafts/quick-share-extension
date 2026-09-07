@@ -1,8 +1,9 @@
-import { domToBlob, domToPng } from 'modern-screenshot';
+import { domToCanvas } from 'modern-screenshot';
 
 export interface ExportOptions {
   scale?: number;
   quality?: number;
+  cardRadius?: number;
 }
 
 /**
@@ -193,32 +194,99 @@ export function sanitizeHtmlForCard(html: string): string {
 }
 
 /**
- * 将指定 DOM 节点导出为 PNG DataURL
+ * 获取真正的卡片主体节点（确保直接获取具备 border-radius 的 .qs-card，避免外层方形容器产生白角）
  */
-export async function captureCardAsPng(element: HTMLElement, options: ExportOptions = {}): Promise<string> {
-  const { scale = 2.5, quality = 0.98 } = options;
-  sanitizeDomForScreenshot(element);
-  return await domToPng(element, {
+function getCardTargetElement(element: HTMLElement): HTMLElement {
+  if (element.classList?.contains('qs-card')) {
+    return element;
+  }
+  return element.querySelector<HTMLElement>('.qs-card') || element;
+}
+
+/**
+ * 为 Canvas 应用圆角裁剪，消除 foreignObject 渲染造成的四角白底
+ */
+export function applyCanvasBorderRadius(canvas: HTMLCanvasElement, radius: number): HTMLCanvasElement {
+  if (radius <= 0) return canvas;
+  const clippedCanvas = document.createElement('canvas');
+  clippedCanvas.width = canvas.width;
+  clippedCanvas.height = canvas.height;
+  const ctx = clippedCanvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(0, 0, canvas.width, canvas.height, radius);
+  } else {
+    const w = canvas.width;
+    const h = canvas.height;
+    const r = Math.min(radius, w / 2, h / 2);
+    ctx.moveTo(r, 0);
+    ctx.lineTo(w - r, 0);
+    ctx.arcTo(w, 0, w, r, r);
+    ctx.lineTo(w, h - r);
+    ctx.arcTo(w, h, w - r, h, r);
+    ctx.lineTo(r, h);
+    ctx.arcTo(0, h, 0, h - r, r);
+    ctx.lineTo(0, r);
+    ctx.arcTo(0, 0, r, 0, r);
+    ctx.closePath();
+  }
+  ctx.clip();
+  ctx.drawImage(canvas, 0, 0);
+  return clippedCanvas;
+}
+
+/**
+ * 将指定 DOM 节点渲染为裁剪了透明圆角的 Canvas
+ */
+export async function renderCardToCanvas(element: HTMLElement, options: ExportOptions = {}): Promise<HTMLCanvasElement> {
+  const { scale = 2.5, cardRadius = 16 } = options;
+  const target = getCardTargetElement(element);
+  sanitizeDomForScreenshot(target);
+
+  // 尝试从 target 的 CSS 中自动获取 border-radius
+  let radius = cardRadius;
+  try {
+    const computedRadius = window.getComputedStyle(target).borderRadius;
+    if (computedRadius) {
+      const parsed = parseFloat(computedRadius);
+      if (!isNaN(parsed) && parsed > 0) {
+        radius = parsed;
+      }
+    }
+  } catch {}
+
+  const rawCanvas = await domToCanvas(target, {
     scale,
-    quality,
     font: false,
+    backgroundColor: null,
     features: {
       removeControlCharacter: true,
     },
   });
+
+  return applyCanvasBorderRadius(rawCanvas, radius * scale);
+}
+
+/**
+ * 将指定 DOM 节点导出为 PNG DataURL
+ */
+export async function captureCardAsPng(element: HTMLElement, options: ExportOptions = {}): Promise<string> {
+  const { quality = 0.98 } = options;
+  const canvas = await renderCardToCanvas(element, options);
+  return canvas.toDataURL('image/png', quality);
 }
 
 /**
  * 将指定 DOM 节点导出并复制到系统剪切板
  */
 export async function copyCardToClipboard(element: HTMLElement, options: ExportOptions = {}): Promise<boolean> {
-  const { scale = 2.5, quality = 0.98 } = options;
-  sanitizeDomForScreenshot(element);
-  const blob = await domToBlob(element, {
-    scale,
-    quality,
-    type: 'image/png',
-    font: false,
+  const { quality = 0.98 } = options;
+  const canvas = await renderCardToCanvas(element, options);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((b) => resolve(b), 'image/png', quality);
   });
 
   if (!blob) {

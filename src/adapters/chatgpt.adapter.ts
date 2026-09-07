@@ -78,59 +78,115 @@ export class ChatGPTAdapter extends BaseAdapter {
   }
 
   private scanAndInject(): void {
-    const turns = document.querySelectorAll<HTMLElement>(
-      'article[data-testid^="conversation-turn-"], div[data-message-author-role="assistant"], article'
+    // 1. 查找所有 Assistant 消息底部的回复操作栏容器
+    const actionBars = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'div[aria-label="回复操作"], div[aria-label="Response actions"], div[aria-label*="操作"], div[aria-label*="actions"]'
+      )
     );
 
-    turns.forEach((turn) => {
-      // 确认属于 Assistant 消息
-      const isAssistant =
-        turn.getAttribute('data-message-author-role') === 'assistant' ||
-        turn.querySelector('[data-message-author-role="assistant"], .markdown');
-      if (!isAssistant) return;
+    // 2. 备用查找：通过 Copy 按钮向上追溯其操作栏父容器
+    const copyButtons = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'button[data-testid="copy-turn-action-button"], button[aria-label="复制回复"], button[aria-label="复制"], button[aria-label="Copy"], button[aria-label*="复制"], button[aria-label*="Copy"]'
+      )
+    );
+    copyButtons.forEach((copyBtn) => {
+      const parentBar = copyBtn.closest<HTMLElement>(
+        'div[aria-label="回复操作"], div[aria-label="Response actions"], div[aria-label*="操作"], div[aria-label*="actions"], div.flex.flex-wrap.items-center, div.flex.items-center'
+      );
+      if (parentBar && !actionBars.includes(parentBar)) {
+        actionBars.push(parentBar);
+      }
+    });
 
-      // 寻找底部操作工具栏
-      const actionsBar =
-        turn.querySelector<HTMLElement>('div[data-testid*="action"], div.flex.gap-1, div.flex.items-center.gap-1') ||
-        turn.querySelector<HTMLElement>('.markdown + div') ||
-        turn.querySelector<HTMLElement>('div.mt-1.flex');
+    // 3. 对找到的每一个 actionsBar 进行注入
+    actionBars.forEach((actionsBar) => {
+      // 避免重复注入
+      if (actionsBar.querySelector('.quick-share-chatgpt-btn, .quick-share-chatgpt-wrapper')) return;
 
-      if (!actionsBar || actionsBar.querySelector('.quick-share-chatgpt-wrapper')) return;
+      // 向上寻找所属的 Assistant 会话 turn 容器
+      const turn =
+        actionsBar.closest<HTMLElement>(
+          'article[data-testid^="conversation-turn-"], div[data-message-author-role="assistant"], div.agent-turn, article'
+        ) || actionsBar.parentElement;
+      if (!turn) return;
 
-      const wrapper = document.createElement('div');
-      wrapper.className = 'quick-share-chatgpt-wrapper';
-      wrapper.style.display = 'inline-flex';
-      wrapper.style.alignItems = 'center';
-      wrapper.style.marginLeft = '4px';
+      // 验证属于 Assistant 消息
+      const isUserOnly =
+        turn.getAttribute('data-message-author-role') === 'user' &&
+        !turn.querySelector('[data-message-author-role="assistant"], .markdown');
+      if (isUserOnly) return;
 
-      const btn = this.createShareButton(() => {
-        if (this.onShareCallback) {
-          this.onShareCallback(this.extract(turn));
-        }
-      }, 'QuickShare');
+      // 创建匹配 ChatGPT 原生按钮风格的 QuickShare 按钮
+      const btnWrapper = document.createElement('span');
+      btnWrapper.className = 'quick-share-chatgpt-wrapper inline-flex items-center pointer-events-auto';
 
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-share-chatgpt-btn text-token-text-secondary hover:text-token-text-primary hover:bg-token-surface-hover rounded-lg transition-colors pointer-events-auto flex items-center justify-center';
+      btn.setAttribute('aria-label', 'QuickShare 卡片分享');
+      btn.setAttribute('title', 'QuickShare 卡片分享');
       btn.style.display = 'inline-flex';
       btn.style.alignItems = 'center';
       btn.style.justifyContent = 'center';
       btn.style.background = 'transparent';
       btn.style.border = 'none';
       btn.style.cursor = 'pointer';
-      btn.style.color = '#8e8ea0';
-      btn.style.padding = '4px 6px';
-      btn.style.borderRadius = '6px';
-      btn.style.transition = 'color 0.2s, background-color 0.2s';
+      btn.style.color = 'inherit';
+      btn.style.padding = '0';
+      btn.style.width = '32px';
+      btn.style.height = '32px';
+      btn.style.borderRadius = '8px';
+      btn.style.pointerEvents = 'auto';
 
-      btn.onmouseenter = () => {
-        btn.style.color = '#111827';
-        btn.style.backgroundColor = 'rgba(0, 0, 0, 0.08)';
-      };
-      btn.onmouseleave = () => {
-        btn.style.color = '#8e8ea0';
-        btn.style.backgroundColor = 'transparent';
+      btn.innerHTML = `
+        <span class="flex items-center justify-center touch:w-10 h-8 w-8">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+            <circle cx="9" cy="9" r="2"/>
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+          </svg>
+        </span>
+      `;
+
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.onShareCallback) {
+          this.onShareCallback(this.extract(turn));
+        }
       };
 
-      wrapper.appendChild(btn);
-      actionsBar.appendChild(wrapper);
+      btnWrapper.appendChild(btn);
+
+      // 优先插在 copyButton 后面，或者插在 更多操作 / 切换模型 按钮前面
+      const copyBtn = actionsBar.querySelector(
+        'button[data-testid="copy-turn-action-button"], button[aria-label*="复制"], button[aria-label*="Copy"]'
+      );
+      const moreBtn = actionsBar.querySelector(
+        'button[aria-label*="更多"], button[aria-label*="More"], button[aria-label*="切换模型"], button[aria-label*="Model"], button[aria-label*="Switch"]'
+      );
+
+      if (copyBtn) {
+        let targetChild: Element = copyBtn;
+        while (targetChild.parentElement && targetChild.parentElement !== actionsBar) {
+          targetChild = targetChild.parentElement;
+        }
+        if (targetChild.nextSibling) {
+          actionsBar.insertBefore(btnWrapper, targetChild.nextSibling);
+        } else {
+          actionsBar.appendChild(btnWrapper);
+        }
+      } else if (moreBtn) {
+        let targetChild: Element = moreBtn;
+        while (targetChild.parentElement && targetChild.parentElement !== actionsBar) {
+          targetChild = targetChild.parentElement;
+        }
+        actionsBar.insertBefore(btnWrapper, targetChild);
+      } else {
+        actionsBar.appendChild(btnWrapper);
+      }
     });
   }
 
@@ -273,9 +329,6 @@ export class ChatGPTAdapter extends BaseAdapter {
       'div[class*="thinking"]',
       'div[class*="reasoning"]',
       'div[class*="code-execution"]',
-      'span[data-content-reference-start]',
-      '[data-content-reference-start]',
-      '[data-content-reference-end]',
       'div.no-scrollbar',
       'div[class*="search-image"]',
       '[class*="search-image"]',
