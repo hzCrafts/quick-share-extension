@@ -194,9 +194,16 @@ export function sanitizeHtmlForCard(html: string): string {
 }
 
 /**
- * 获取真正的卡片主体节点（确保直接获取具备 border-radius 的 .qs-card，避免外层方形容器产生白角）
+ * 获取真正的卡片主体节点（优先获取具备外层背景与边距的 .qs-card-wrapper，或内层 .qs-card）
  */
 function getCardTargetElement(element: HTMLElement): HTMLElement {
+  if (element.classList?.contains('qs-card-wrapper')) {
+    return element;
+  }
+  const wrapper = element.querySelector<HTMLElement>('.qs-card-wrapper');
+  if (wrapper) {
+    return wrapper;
+  }
   if (element.classList?.contains('qs-card')) {
     return element;
   }
@@ -245,17 +252,23 @@ export async function renderCardToCanvas(element: HTMLElement, options: ExportOp
   const target = getCardTargetElement(element);
   sanitizeDomForScreenshot(target);
 
-  // 尝试从 target 的 CSS 中自动获取 border-radius
-  let radius = cardRadius;
-  try {
-    const computedRadius = window.getComputedStyle(target).borderRadius;
-    if (computedRadius) {
-      const parsed = parseFloat(computedRadius);
-      if (!isNaN(parsed) && parsed > 0) {
-        radius = parsed;
+  // 判断是否开启了外层背景边距 (外层 100% 直角输出)
+  const isOuterPadding = target.classList?.contains('has-outer-padding');
+
+  let radius = 0;
+  if (!isOuterPadding) {
+    radius = cardRadius;
+    try {
+      const cardEl = target.classList?.contains('qs-card') ? target : target.querySelector('.qs-card');
+      const computedRadius = cardEl ? window.getComputedStyle(cardEl).borderRadius : window.getComputedStyle(target).borderRadius;
+      if (computedRadius) {
+        const parsed = parseFloat(computedRadius);
+        if (!isNaN(parsed) && parsed > 0) {
+          radius = parsed;
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   const rawCanvas = await domToCanvas(target, {
     scale,
@@ -266,7 +279,7 @@ export async function renderCardToCanvas(element: HTMLElement, options: ExportOp
     },
   });
 
-  return applyCanvasBorderRadius(rawCanvas, radius * scale);
+  return isOuterPadding ? rawCanvas : applyCanvasBorderRadius(rawCanvas, radius * scale);
 }
 
 /**

@@ -4,7 +4,7 @@ import type { PostData } from '@/types/post';
 import { type CardRenderOptions, type CardThemeId, PRESET_THEMES } from '@/types/theme';
 import ShareCard from '@/components/card/ShareCard.vue';
 import { renderCardToCanvas, copyCardToClipboard, downloadCardAsPng } from '@/utils/exporter';
-import { getLastCardTheme, setLastCardTheme } from '@/utils/storage';
+import { getLastCardTheme, setLastCardTheme, getLastShowOuterPadding, setLastShowOuterPadding } from '@/utils/storage';
 import { 
   X, 
   Copy, 
@@ -18,7 +18,8 @@ import {
   Loader2, 
   Move, 
   ArrowLeftRight, 
-  Link2 
+  Link2,
+  Layers
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -46,7 +47,8 @@ const viewportRef = ref<HTMLElement | null>(null);
 // 卡片渲染配置
 const options = reactive<CardRenderOptions>({
   themeId: 'gradient-sunset',
-  padding: 32,
+  showOuterPadding: true,
+  padding: 24,
   showQrCode: false,
   showWatermark: true,
   showStats: false,
@@ -321,14 +323,23 @@ const selectTheme = (themeId: CardThemeId) => {
   setLastCardTheme(themeId);
 };
 
+const toggleOuterPadding = () => {
+  options.showOuterPadding = !options.showOuterPadding;
+  setLastShowOuterPadding(options.showOuterPadding);
+};
+
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(async () => {
-  // 恢复上次选中的卡片主题
-  const savedTheme = await getLastCardTheme();
+  // 恢复上次选中的卡片主题与外层背景边距配置
+  const [savedTheme, savedOuterPadding] = await Promise.all([
+    getLastCardTheme(),
+    getLastShowOuterPadding(),
+  ]);
   if (savedTheme && PRESET_THEMES[savedTheme]) {
     options.themeId = savedTheme;
   }
+  options.showOuterPadding = savedOuterPadding;
 
   if (props.post) {
     triggerRender();
@@ -358,10 +369,14 @@ watch(
   () => props.visible,
   async (newVal) => {
     if (newVal) {
-      const savedTheme = await getLastCardTheme();
+      const [savedTheme, savedOuterPadding] = await Promise.all([
+        getLastCardTheme(),
+        getLastShowOuterPadding(),
+      ]);
       if (savedTheme && PRESET_THEMES[savedTheme]) {
         options.themeId = savedTheme;
       }
+      options.showOuterPadding = savedOuterPadding;
     }
   }
 );
@@ -369,6 +384,7 @@ watch(
 watch(
   [
     () => options.themeId,
+    () => options.showOuterPadding,
     () => options.padding,
     () => options.fontScale,
     () => options.showWatermark,
@@ -477,6 +493,41 @@ watch(
               </button>
             </div>
           </div>
+
+          <!-- 2. 卡片配置 (外层背景边距开关) -->
+          <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5 px-1">
+              <Layers class="w-3.5 h-3.5 text-sky-500" />
+              卡片布局
+            </label>
+            <div class="flex flex-col gap-1.5">
+              <button
+                type="button"
+                @click="toggleOuterPadding"
+                class="w-full flex items-center justify-between p-2 rounded-xl border text-xs font-medium transition-all cursor-pointer select-none text-left"
+                :class="[
+                  options.showOuterPadding
+                    ? 'border-sky-500/50 bg-sky-50/50 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 shadow-sm'
+                    : 'border-slate-200/90 dark:border-slate-800/90 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/80'
+                ]"
+              >
+                <div class="flex flex-col pr-1">
+                  <span class="font-semibold leading-tight">背景边距</span>
+                  <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">直角外衬底</span>
+                </div>
+                <!-- Switch Pill -->
+                <div
+                  class="w-8 h-4.5 rounded-full transition-colors relative flex items-center px-0.5 shrink-0"
+                  :class="options.showOuterPadding ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'"
+                >
+                  <div
+                    class="w-3.5 h-3.5 rounded-full bg-white transition-transform shadow-sm"
+                    :class="options.showOuterPadding ? 'translate-x-3.5' : 'translate-x-0'"
+                  />
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余) -->
@@ -567,7 +618,7 @@ watch(
             <img
               :src="previewDataUrl"
               alt="Card Preview"
-              class="shadow-2xl rounded-2xl pointer-events-none max-w-none block"
+              class="shadow-2xl rounded-none pointer-events-none max-w-none block"
               :style="{
                 width: `${imageNaturalWidth}px`,
                 height: `${imageNaturalHeight}px`,
