@@ -404,14 +404,14 @@ watch(
     class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/60 dark:bg-black/80 backdrop-blur-sm transition-opacity text-slate-800 dark:text-slate-100 font-sans pointer-events-auto select-none"
     @click.self="emit('close')"
   >
-    <!-- 离屏真实未缩放渲染源 (固定标准 640px 物理排版宽度) -->
+    <!-- 离屏真实未缩放渲染源 (固定标准 720px 物理排版宽度) -->
     <div
       v-if="post"
       class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1] bg-transparent"
       style="background: transparent !important;"
       aria-hidden="true"
     >
-      <div ref="offscreenCardRef" class="w-[640px] max-w-[640px] bg-transparent" style="background: transparent !important;">
+      <div ref="offscreenCardRef" class="w-[720px] max-w-[720px] bg-transparent" style="background: transparent !important;">
         <ShareCard
           :post="post"
           :options="options"
@@ -443,10 +443,10 @@ watch(
         </button>
       </div>
 
-      <!-- Main Body: 左右分栏 -->
-      <div class="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
-        <!-- 左侧：精简单列主题控制台 (宽度 w-48) -->
-        <div class="w-full md:w-48 border-r border-slate-200/80 dark:border-slate-800 p-3 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 shrink-0">
+      <!-- Main Body: 永久左右分栏 (右侧自由 shrink，不换行) -->
+      <div class="flex-1 flex flex-row overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
+        <!-- 左侧：精简单列主题控制台 (固定宽度 w-48) -->
+        <div class="w-48 border-r border-slate-200/80 dark:border-slate-800 p-3 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 shrink-0">
           <!-- 1. 主题选择 (单列紧凑排列) -->
           <div class="space-y-2">
             <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5 px-1">
@@ -530,17 +530,17 @@ watch(
           </div>
         </div>
 
-        <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余) -->
+        <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余，自适应 shrink) -->
         <div
           ref="viewportRef"
-          class="flex-1 relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/70 select-none flex items-center justify-center min-h-0"
+          class="flex-1 min-w-0 relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/70 select-none flex items-center justify-center min-h-0"
           :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
           @wheel.prevent="handleWheel"
           @mousedown="handleMouseDown"
           @mousemove="handleMouseMove"
         >
-          <!-- 悬浮控制工具栏 (纯 Icon + Tooltip) -->
-          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-lg border border-slate-200/80 dark:border-slate-800 rounded-xl p-1 text-xs">
+          <!-- 悬浮控制工具栏 (半透明，hover 时清晰，不遮挡卡片) -->
+          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/70 hover:bg-white/95 dark:bg-slate-900/70 dark:hover:bg-slate-900/95 backdrop-blur-md shadow-md hover:shadow-xl border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-1 text-xs opacity-40 hover:opacity-100 transition-all duration-200">
             <button
               @click.stop="zoomOut"
               class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
@@ -587,12 +587,6 @@ watch(
             >
               <RotateCcw class="w-4 h-4" />
             </button>
-          </div>
-
-          <!-- 交互提示 Badge -->
-          <div class="absolute bottom-4 left-4 z-20 pointer-events-none px-2.5 py-1 bg-black/50 dark:bg-black/75 backdrop-blur-md rounded-lg text-white text-[11px] flex items-center gap-1.5 opacity-80">
-            <Move class="w-3 h-3" />
-            滚轮上下平移 • Shift+滚轮左右 • Meta+滚轮缩放
           </div>
 
           <!-- Loading 状态 (包含数据提取与离屏高清渲染) -->

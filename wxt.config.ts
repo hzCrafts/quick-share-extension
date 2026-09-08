@@ -6,6 +6,9 @@ export default defineConfig({
   srcDir: 'src',
   vite: () => ({
     plugins: [vue()],
+    build: {
+      assetsInlineLimit: 150 * 1024, // 确保 woff2 字体直接内联打包进 CSS，避免 Content Script 跨域/相对路径解析异常
+    },
   }),
   manifest: {
     name: 'Quick Share - 社交媒体卡片分享',

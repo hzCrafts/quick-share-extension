@@ -308,19 +308,13 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         </div>
       </div>
 
-      <!-- Footer: 清洗后 URL 链接与品牌水印 -->
-      <div class="qs-card-footer">
-        <div class="qs-footer-info">
-          <!-- 干净清晰的 URL 链接（非私有 AI 对话时展示，便于 OCR 与直接点击） -->
-          <div
-            v-if="post.url && !isAiPlatform"
-            class="qs-footer-url"
-          >
-            {{ post.url }}
-          </div>
-          <div v-if="options.showWatermark" class="qs-footer-watermark">
-            Shared via QuickShare
-          </div>
+      <!-- Footer: 清洗后 URL 链接 -->
+      <div
+        v-if="post.url && !isAiPlatform"
+        class="qs-card-footer"
+      >
+        <div class="qs-footer-url">
+          {{ post.url }}
         </div>
       </div>
     </div>
@@ -328,13 +322,13 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 </template>
 
 <style scoped>
-/* 卡片外层包装容器 (标准 640px 物理排版宽度，外层 100% 直角) */
+/* 卡片外层包装容器 (标准 720px 物理排版宽度，外层 100% 直角) */
 .qs-card-wrapper {
   position: relative;
   box-sizing: border-box;
   user-select: text;
-  width: 640px;
-  max-width: 640px;
+  width: 720px;
+  max-width: 720px;
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -393,8 +387,9 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   height: 44px;
   object-fit: cover;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
   border: none;
+  background: transparent;
 }
 
 .qs-avatar-fallback {
@@ -709,7 +704,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 :deep(.quick-share-rich-body code-block),
 :deep(.quick-share-rich-body [class*="code-block"]),
 :deep(.quick-share-rich-body [class*="code-container"]) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 :deep(.quick-share-rich-body pre),
@@ -891,39 +886,25 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
 /* Footer */
 .qs-card-footer {
-  padding-top: 8px;
+  padding-top: 10px;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--qs-text-secondary);
+  align-items: center;
   width: 100%;
-}
-
-.qs-footer-info {
-  min-width: 0;
-  flex: 1;
-  padding-right: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  box-sizing: border-box;
 }
 
 .qs-footer-url {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  line-height: 1.35;
-  word-break: break-all;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--qs-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
   opacity: 0.85;
   user-select: all;
-}
-
-.qs-footer-watermark {
-  font-weight: 500;
   letter-spacing: -0.01em;
-  font-size: 11px;
-  opacity: 0.75;
 }
 </style>
 

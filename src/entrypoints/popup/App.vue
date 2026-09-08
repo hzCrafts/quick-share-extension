@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { Sparkles, Globe, Sun, Moon, Laptop } from 'lucide-vue-next';
 import { getUiThemeMode, setUiThemeMode, type UiThemeMode } from '@/utils/storage';
 
@@ -12,10 +12,26 @@ const isDarkMode = computed(() => {
   return systemPrefersDark.value;
 });
 
+// 监听并在 <html> 根节点响应式同步 .dark 类，确保 Tailwind dark: 变体全局生效
+watch(
+  isDarkMode,
+  (dark) => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', dark);
+      document.body.className = dark ? 'bg-slate-900 text-slate-100' : 'bg-white text-slate-800';
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
   currentUiMode.value = await getUiThemeMode();
   if (typeof window !== 'undefined' && window.matchMedia) {
-    systemPrefersDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    systemPrefersDark.value = mq.matches;
+    mq.addEventListener('change', (e) => {
+      systemPrefersDark.value = e.matches;
+    });
   }
 });
 
@@ -28,7 +44,6 @@ const handleSelectMode = async (mode: UiThemeMode) => {
 <template>
   <div
     class="w-80 bg-white dark:bg-slate-900 p-5 text-slate-800 dark:text-slate-100 font-sans shadow-lg select-none transition-colors"
-    :class="{ dark: isDarkMode }"
   >
     <!-- Header -->
     <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -46,14 +61,14 @@ const handleSelectMode = async (mode: UiThemeMode) => {
       <div class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
         弹窗外观 (Modal Theme)
       </div>
-      <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
+      <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200/60 dark:border-slate-700/50">
         <button
           type="button"
           @click="handleSelectMode('system')"
           class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer"
           :class="[
             currentUiMode === 'system'
-              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 font-bold shadow-sm'
+              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 font-bold shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           ]"
         >
@@ -67,7 +82,7 @@ const handleSelectMode = async (mode: UiThemeMode) => {
           class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer"
           :class="[
             currentUiMode === 'light'
-              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 font-bold shadow-sm'
+              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 font-bold shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           ]"
         >
@@ -81,7 +96,7 @@ const handleSelectMode = async (mode: UiThemeMode) => {
           class="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer"
           :class="[
             currentUiMode === 'dark'
-              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 font-bold shadow-sm'
+              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 font-bold shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           ]"
         >
@@ -98,22 +113,22 @@ const handleSelectMode = async (mode: UiThemeMode) => {
       </div>
 
       <div class="grid grid-cols-2 gap-2 text-xs">
-        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium">
+        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-medium">
           <img src="https://abs.twimg.com/favicons/twitter.3.ico" alt="x" class="w-4 h-4 object-contain" />
           <span class="truncate">X (Twitter)</span>
         </div>
 
-        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium">
+        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-medium">
           <img src="https://static.zhihu.com/heifetz/favicon.ico" alt="zhihu" class="w-4 h-4 object-contain" />
           <span class="truncate">知乎 (Zhihu)</span>
         </div>
 
-        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium">
+        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-medium">
           <img src="https://chatgpt.com/favicon.ico" alt="chatgpt" class="w-4 h-4 object-contain" />
           <span class="truncate">ChatGPT</span>
         </div>
 
-        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 font-medium">
+        <div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-medium">
           <img src="https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png" alt="gemini" class="w-4 h-4 object-contain" />
           <span class="truncate">Google Gemini</span>
         </div>
@@ -121,8 +136,8 @@ const handleSelectMode = async (mode: UiThemeMode) => {
     </div>
 
     <!-- Instructions -->
-    <div class="mt-4 p-3 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border border-slate-100/80 dark:border-slate-800/60">
-      💡 在帖子操作栏点击 <span class="font-semibold text-slate-700 dark:text-slate-200">QuickShare</span> 按钮，或在帖子内划选文字右键即可生成高清卡片。
+    <div class="mt-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed border border-slate-200/80 dark:border-slate-700/60">
+      💡 在帖子操作栏点击 <span class="font-semibold text-slate-900 dark:text-white">QuickShare</span> 按钮，或在帖子内划选文字右键即可生成高清卡片。
     </div>
 
     <!-- Footer -->
