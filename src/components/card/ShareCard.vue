@@ -1,44 +1,71 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { PostData } from '@/types/post';
-import { type CardRenderOptions, PRESET_THEMES } from '@/types/theme';
+import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
+import { getThemeById } from '@/utils/theme-engine';
 
 const props = defineProps<{
   post: PostData;
   options: CardRenderOptions;
+  customThemes?: QuickShareTheme[];
 }>();
 
-const currentTheme = computed(() => {
-  return PRESET_THEMES[props.options.themeId] || PRESET_THEMES['gradient-sunset'];
+const currentTheme = computed<QuickShareTheme>(() => {
+  return getThemeById(props.options.themeId, props.customThemes);
 });
 
 // 计算卡片专属 CSS 变量字典
 const themeCssVars = computed(() => {
-  const t = currentTheme.value.tokens;
-  const isSerif = t.fontFamily === 'serif';
-  return {
-    '--qs-outer-bg': t.outerBackground,
-    '--qs-card-bg': t.cardBackground,
-    '--qs-card-backdrop-filter': t.cardBackdropFilter,
-    '--qs-card-border': t.cardBorder,
-    '--qs-card-shadow': t.cardShadow,
-    '--qs-text-primary': t.textPrimary,
-    '--qs-text-secondary': t.textSecondary,
-    '--qs-prompt-bg': t.promptBg,
-    '--qs-prompt-border': t.promptBorder,
-    '--qs-quote-bg': t.quoteBg,
-    '--qs-quote-border': t.quoteBorder,
-    '--qs-code-bg': t.codeBg,
-    '--qs-code-text': t.codeText,
-    '--qs-table-border': t.tableBorder,
-    '--qs-table-header-bg': t.tableHeaderBg,
-    '--qs-table-row-even-bg': t.tableRowEvenBg,
-    '--qs-font-family': isSerif
-      ? "Charter, Georgia, Cambria, 'Times New Roman', Times, serif"
-      : "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  const theme = currentTheme.value;
+  const isSerif = theme.typography.fontFamily === 'serif';
+  const isMono = theme.typography.fontFamily === 'mono';
+
+  let resolvedFontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif";
+  if (isSerif) {
+    resolvedFontFamily = "Charter, 'Songti SC', 'Source Han Serif SC', Georgia, Cambria, 'Times New Roman', serif";
+  } else if (isMono) {
+    resolvedFontFamily = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  } else if (theme.typography.fontFamily !== 'sans') {
+    resolvedFontFamily = theme.typography.fontFamily;
+  }
+
+  const baseVars: Record<string, string> = {
+    '--qs-outer-bg': theme.ambient.outerBackground,
+    '--qs-card-bg': theme.card.background,
+    '--qs-card-backdrop-filter': theme.card.backdropFilter || 'none',
+    '--qs-card-border': theme.card.border || 'none',
+    '--qs-card-shadow': theme.card.shadow,
+    '--qs-card-inner-glow': theme.card.innerGlow || 'none',
+    '--qs-text-primary': theme.typography.textPrimary,
+    '--qs-text-secondary': theme.typography.textSecondary,
+    '--qs-text-muted': theme.typography.textMuted || theme.typography.textSecondary,
+    '--qs-prompt-bg': theme.components?.promptCard?.background || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)'),
+    '--qs-prompt-border': theme.components?.promptCard?.border || 'none',
+    '--qs-prompt-header-color': theme.components?.promptCard?.headerColor || 'inherit',
+    '--qs-prompt-radius': theme.components?.promptCard?.borderRadius || '14px',
+    '--qs-quote-bg': theme.components?.quoteBlock?.background || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'),
+    '--qs-quote-border': theme.components?.quoteBlock?.borderColor || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'),
+    '--qs-quote-radius': theme.components?.quoteBlock?.borderRadius || '0 8px 8px 0',
+    '--qs-code-bg': theme.components?.codeBlock?.background || (theme.ambient.isDark ? '#141418' : '#f1f5f9'),
+    '--qs-code-text': theme.components?.codeBlock?.color || theme.typography.textPrimary,
+    '--qs-code-border': theme.components?.codeBlock?.border || 'none',
+    '--qs-code-radius': theme.components?.codeBlock?.borderRadius || '8px',
+    '--qs-table-border': theme.components?.table?.borderColor || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'),
+    '--qs-table-header-bg': theme.components?.table?.headerBg || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)'),
+    '--qs-table-row-even-bg': theme.components?.table?.rowEvenBg || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)'),
+    '--qs-font-family': resolvedFontFamily,
     '--qs-padding': `${props.options.padding}px`,
     '--qs-card-radius': `${props.options.cardRadius}px`,
   };
+
+  // 展开自定义扩展 CSS 变量
+  if (theme.customVars) {
+    for (const [k, v] of Object.entries(theme.customVars)) {
+      baseVars[k] = v;
+    }
+  }
+
+  return baseVars;
 });
 
 const avatarRadiusStyle = computed(() => {
@@ -53,96 +80,143 @@ const avatarRadiusStyle = computed(() => {
   }
 });
 
-// 平台显示与 Favicon 规范 (基于主题 isDark 与品牌色自动计算，无 Tailwind dark: 依赖)
+// 平台显示与 Favicon 规范 (优先使用 theme.components.platformBadge 覆写，无覆写时基于 isDark 自动调配)
 const platformConfig = computed(() => {
-  const isDark = currentTheme.value.tokens.isDark;
-  switch (props.post.platform) {
-    case 'zhihu':
-      return {
-        name: '知乎',
-        faviconUrl: 'https://static.zhihu.com/heifetz/favicon.ico',
-        style: {
-          backgroundColor: isDark ? 'rgba(0, 102, 255, 0.22)' : 'rgba(0, 102, 255, 0.10)',
-          color: isDark ? '#60a5fa' : '#0066ff',
-        },
-      };
-    case 'x':
-      return {
-        name: 'X',
-        faviconUrl: 'https://abs.twimg.com/favicons/twitter.3.ico',
-        style: {
-          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
-          color: isDark ? '#ffffff' : '#0f172a',
-        },
-      };
-    case 'chatgpt':
-      return {
-        name: 'ChatGPT',
-        faviconUrl: 'https://chatgpt.com/favicon.ico',
-        style: {
-          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
-          color: isDark ? '#ffffff' : '#0f172a',
-        },
-      };
-    case 'gemini':
-      return {
-        name: 'Gemini',
-        faviconUrl: 'https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png',
-        style: {
-          backgroundColor: isDark ? 'rgba(26, 115, 232, 0.25)' : 'rgba(26, 115, 232, 0.10)',
-          color: isDark ? '#93c5fd' : '#1a73e8',
-        },
-      };
-    case 'weibo':
-      return {
-        name: '微博',
-        faviconUrl: 'https://weibo.com/favicon.ico',
-        style: {
-          backgroundColor: isDark ? 'rgba(230, 22, 45, 0.22)' : 'rgba(230, 22, 45, 0.10)',
-          color: isDark ? '#f87171' : '#e6162d',
-        },
-      };
-    case 'jike':
-      return {
-        name: '即刻',
-        faviconUrl: 'https://web.okjike.com/favicon.ico',
-        style: {
-          backgroundColor: isDark ? 'rgba(255, 228, 17, 0.25)' : 'rgba(255, 228, 17, 0.20)',
-          color: isDark ? '#fef08a' : '#333333',
-        },
-      };
-    default: {
-      let hostFavicon = '';
-      try {
-        const host = new URL(props.post.url).hostname;
-        hostFavicon = `https://${host}/favicon.ico`;
-      } catch {
-        hostFavicon = '';
+  const isDark = currentTheme.value.ambient.isDark;
+  const customBadge = currentTheme.value.components?.platformBadge;
+
+  const getPlatformBase = () => {
+    switch (props.post.platform) {
+      case 'zhihu':
+        return {
+          name: '知乎',
+          faviconUrl: 'https://static.zhihu.com/heifetz/favicon.ico',
+          style: {
+            backgroundColor: isDark ? 'rgba(0, 102, 255, 0.22)' : 'rgba(0, 102, 255, 0.10)',
+            color: isDark ? '#60a5fa' : '#0066ff',
+          },
+        };
+      case 'x':
+        return {
+          name: 'X',
+          faviconUrl: 'https://abs.twimg.com/favicons/twitter.3.ico',
+          style: {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+            color: isDark ? '#ffffff' : '#0f172a',
+          },
+        };
+      case 'chatgpt':
+        return {
+          name: 'ChatGPT',
+          faviconUrl: 'https://chatgpt.com/favicon.ico',
+          style: {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+            color: isDark ? '#ffffff' : '#0f172a',
+          },
+        };
+      case 'gemini':
+        return {
+          name: 'Gemini',
+          faviconUrl: 'https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png',
+          style: {
+            backgroundColor: isDark ? 'rgba(26, 115, 232, 0.25)' : 'rgba(26, 115, 232, 0.10)',
+            color: isDark ? '#93c5fd' : '#1a73e8',
+          },
+        };
+      case 'weibo':
+        return {
+          name: '微博',
+          faviconUrl: 'https://weibo.com/favicon.ico',
+          style: {
+            backgroundColor: isDark ? 'rgba(230, 22, 45, 0.22)' : 'rgba(230, 22, 45, 0.10)',
+            color: isDark ? '#f87171' : '#e6162d',
+          },
+        };
+      case 'jike':
+        return {
+          name: '即刻',
+          faviconUrl: 'https://web.okjike.com/favicon.ico',
+          style: {
+            backgroundColor: isDark ? 'rgba(255, 228, 17, 0.25)' : 'rgba(255, 228, 17, 0.20)',
+            color: isDark ? '#fef08a' : '#333333',
+          },
+        };
+      default: {
+        let hostFavicon = '';
+        try {
+          const host = new URL(props.post.url).hostname;
+          hostFavicon = `https://${host}/favicon.ico`;
+        } catch {
+          hostFavicon = '';
+        }
+        return {
+          name: '网页',
+          faviconUrl: hostFavicon,
+          style: {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(100, 116, 139, 0.10)',
+            color: isDark ? '#cbd5e1' : '#475569',
+          },
+        };
       }
-      return {
-        name: '网页',
-        faviconUrl: hostFavicon,
-        style: {
-          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(100, 116, 139, 0.10)',
-          color: isDark ? '#cbd5e1' : '#475569',
-        },
-      };
     }
+  };
+
+  const base = getPlatformBase();
+  if (customBadge) {
+    return {
+      ...base,
+      style: {
+        ...base.style,
+        ...(customBadge.background ? { backgroundColor: customBadge.background } : {}),
+        ...(customBadge.color ? { color: customBadge.color } : {}),
+        ...(customBadge.border ? { border: customBadge.border } : {}),
+        ...(customBadge.borderRadius ? { borderRadius: customBadge.borderRadius } : {}),
+      },
+    };
   }
+  return base;
 });
 
 const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.post.platform === 'gemini');
 </script>
 
 <template>
-  <!-- 卡片外层包装容器 (支持直角外层背景衬底) -->
+  <!-- 卡片外层包装容器 (标准 720px 物理排版宽度，外层 100% 直角) -->
   <div
     class="qs-card-wrapper"
     :class="{ 'has-outer-padding': options.showOuterPadding }"
     :style="themeCssVars"
   >
-    <!-- 卡片主体 (浮起在背景上的圆角卡片) -->
+    <!-- 环境空间弥散光核层 (Ambient Glows) -->
+    <div
+      v-if="options.showOuterPadding && currentTheme.ambient.glows && currentTheme.ambient.glows.length > 0"
+      class="qs-ambient-glows-container"
+    >
+      <div
+        v-for="(glow, gIdx) in currentTheme.ambient.glows"
+        :key="gIdx"
+        class="qs-ambient-glow-item"
+        :style="{
+          background: `radial-gradient(ellipse at center, ${glow.color} 0%, transparent 70%)`,
+          left: glow.position.split(' ')[0] || '50%',
+          top: glow.position.split(' ')[1] || '50%',
+          width: glow.size.split(' ')[0] || '400px',
+          height: glow.size.split(' ')[1] || glow.size.split(' ')[0] || '300px',
+          filter: `blur(${glow.blur || '80px'})`,
+          opacity: glow.opacity ?? 0.8,
+        }"
+      />
+    </div>
+
+    <!-- 卡片主体 (圆角、浮起多层立体阴影、物理材质) -->
     <div class="qs-card">
+      <!-- 顶部 1px Specular 镜面高光反射光刃 (Apple Liquid Glass / Raycast 硬件质感) -->
+      <div
+        v-if="currentTheme.card.borderHighlight"
+        class="qs-specular-highlight"
+        :style="{ background: currentTheme.card.borderHighlight }"
+      />
+
       <!-- Header: 作者信息 & 站点 Favicon 标识 -->
       <div class="qs-card-header">
         <div class="qs-author-box">
@@ -195,12 +269,15 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
       <!-- Content: 标题（如有）与正文/图文流 -->
       <div class="qs-card-content">
-        <!-- 1. AI 对话场景：用户提问 Prompt (纯 CSS 变量毛玻璃背景与边框) -->
+        <!-- 1. AI 对话场景：用户提问 Prompt -->
         <div
           v-if="isAiPlatform && (post.title || post.promptHtml)"
           class="qs-prompt-container"
         >
-          <div class="qs-prompt-header">
+          <div
+            class="qs-prompt-header"
+            :style="{ color: themeCssVars['--qs-prompt-header-color'] }"
+          >
             <span class="qs-prompt-dot"></span>
             Prompt
           </div>
@@ -336,6 +413,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   border-radius: 0px !important;
   font-family: var(--qs-font-family);
   color: var(--qs-text-primary);
+  overflow: hidden;
 }
 
 /* 开启背景边距：外层四个角彻底直角 (border-radius: 0)，填充 48px 主题外层背景衬底 */
@@ -345,7 +423,23 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   border-radius: 0px !important;
 }
 
-/* 卡片主体容器 (圆角、浮起大阴影、内边距) */
+/* 环境空间弥散光核容器 */
+.qs-ambient-glows-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.qs-ambient-glow-item {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* 卡片主体容器 (圆角、浮起多层立体大阴影、内发光、内边距) */
 .qs-card {
   position: relative;
   overflow: hidden;
@@ -356,12 +450,24 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   justify-content: space-between;
   background: var(--qs-card-bg);
   border: var(--qs-card-border);
-  box-shadow: var(--qs-card-shadow);
+  box-shadow: var(--qs-card-shadow), var(--qs-card-inner-glow);
   backdrop-filter: var(--qs-card-backdrop-filter);
   -webkit-backdrop-filter: var(--qs-card-backdrop-filter);
   border-radius: var(--qs-card-radius);
   padding: var(--qs-padding);
   color: var(--qs-text-primary);
+  z-index: 1;
+}
+
+/* 顶部 1px Specular 镜面高光光刃 */
+.qs-specular-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* Header */
@@ -471,7 +577,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 .qs-prompt-container {
   margin-bottom: 24px;
   width: 100%;
-  border-radius: 16px;
+  border-radius: var(--qs-prompt-radius);
   padding: 16px;
   background: var(--qs-prompt-bg);
   border: var(--qs-prompt-border);
@@ -486,7 +592,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--qs-text-secondary);
+  color: var(--qs-prompt-header-color);
   margin-bottom: 6px;
 }
 
@@ -495,7 +601,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   height: 6px;
   border-radius: 50%;
   background-color: currentColor;
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 .qs-prompt-plain {
@@ -644,7 +750,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin-bottom: 14px;
   border-left: 3.5px solid var(--qs-quote-border);
   background-color: var(--qs-quote-bg);
-  border-radius: 0 8px 8px 0;
+  border-radius: var(--qs-quote-radius);
   opacity: 0.95;
 }
 
@@ -712,7 +818,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 :deep(.quick-share-rich-body [class*="code-block"]) {
   background-color: var(--qs-code-bg);
   color: var(--qs-code-text);
-  border-radius: 8px;
+  border: var(--qs-code-border);
+  border-radius: var(--qs-code-radius);
   padding: 12px 14px;
   margin: 12px 0;
   max-width: 100%;
@@ -907,4 +1014,3 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   letter-spacing: -0.01em;
 }
 </style>
-

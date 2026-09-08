@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { PostData } from '@/types/post';
-import { type CardRenderOptions, type CardThemeId, PRESET_THEMES } from '@/types/theme';
+import { type CardRenderOptions, type CardThemeId, type QuickShareTheme, BUILTIN_THEMES } from '@/types/theme';
+import { 
+  getThemeById, 
+  loadCustomThemes, 
+  saveCustomTheme, 
+  deleteCustomTheme, 
+  exportThemeToJson, 
+  importThemeFromJson 
+} from '@/utils/theme-engine';
 import ShareCard from '@/components/card/ShareCard.vue';
 import { renderCardToCanvas, copyCardToClipboard, downloadCardAsPng } from '@/utils/exporter';
 import { getLastCardTheme, setLastCardTheme, getLastShowOuterPadding, setLastShowOuterPadding } from '@/utils/storage';
@@ -16,10 +24,13 @@ import {
   ZoomOut, 
   RotateCcw, 
   Loader2, 
-  Move, 
   ArrowLeftRight, 
   Link2,
-  Layers
+  Layers,
+  Upload,
+  Share2,
+  Trash2,
+  Code
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -44,9 +55,15 @@ const platformName = computed(() => props.post?.platform ? props.post.platform.t
 const offscreenCardRef = ref<HTMLElement | null>(null);
 const viewportRef = ref<HTMLElement | null>(null);
 
+// 自定义主题与主题列表
+const customThemes = ref<QuickShareTheme[]>([]);
+const allThemes = computed<QuickShareTheme[]>(() => {
+  return [...Object.values(BUILTIN_THEMES), ...customThemes.value];
+});
+
 // 卡片渲染配置
 const options = reactive<CardRenderOptions>({
-  themeId: 'gradient-sunset',
+  themeId: 'raycast-dark',
   showOuterPadding: true,
   padding: 24,
   showQrCode: false,
@@ -57,6 +74,12 @@ const options = reactive<CardRenderOptions>({
   authorAvatarRadius: 'rounded-full',
   aspectRatio: 'auto',
 });
+
+// 主题导入/导出弹窗状态
+const isImportModalOpen = ref(false);
+const importJsonInput = ref('');
+const importError = ref('');
+const copyThemeSuccess = ref(false);
 
 // 生成的高清预览图片
 const previewDataUrl = ref<string>('');
@@ -185,7 +208,7 @@ const fitToWidth = () => {
 
 /**
  * 复合滚轮事件处理：
- * - Meta (Command) 或 Ctrl + 滚轮：光标锚定缩放 (Zoom-towards-Cursor)
+ * - Meta (Command) 或 Ctrl + 滚轮：光标锚定缩放
  * - Shift + 滚轮：左右横向平移
  * - 普通滚轮：上下平移
  */
@@ -330,16 +353,67 @@ const toggleOuterPadding = () => {
   setLastShowOuterPadding(options.showOuterPadding);
 };
 
+// 导出当前主题 JSON
+const handleExportCurrentTheme = async () => {
+  const current = getThemeById(options.themeId, customThemes.value);
+  const jsonStr = exportThemeToJson(current);
+  try {
+    await navigator.clipboard.writeText(jsonStr);
+    copyThemeSuccess.value = true;
+    setTimeout(() => {
+      copyThemeSuccess.value = false;
+    }, 2000);
+  } catch {
+    alert('复制主题 JSON 到剪切板失败');
+  }
+};
+
+// 导入主题处理
+const handleConfirmImport = async () => {
+  if (!importJsonInput.value.trim()) {
+    importError.value = '请输入或粘贴主题 JSON 内容';
+    return;
+  }
+  const res = importThemeFromJson(importJsonInput.value);
+  if (!res.success || !res.theme) {
+    importError.value = res.error || '主题导入失败，请检查格式';
+    return;
+  }
+  await saveCustomTheme(res.theme);
+  customThemes.value = await loadCustomThemes();
+  options.themeId = res.theme.id;
+  setLastCardTheme(res.theme.id);
+  isImportModalOpen.value = false;
+  importJsonInput.value = '';
+  importError.value = '';
+};
+
+// 删除自定义主题
+const handleDeleteTheme = async (themeId: string) => {
+  await deleteCustomTheme(themeId);
+  customThemes.value = await loadCustomThemes();
+  if (options.themeId === themeId) {
+    options.themeId = 'raycast-dark';
+    setLastCardTheme('raycast-dark');
+  }
+};
+
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(async () => {
-  // 恢复上次选中的卡片主题与外层背景边距配置
-  const [savedTheme, savedOuterPadding] = await Promise.all([
+  // 加载自定义主题与恢复上次选中的卡片主题/外层背景边距
+  const [loadedCustoms, savedTheme, savedOuterPadding] = await Promise.all([
+    loadCustomThemes(),
     getLastCardTheme(),
     getLastShowOuterPadding(),
   ]);
-  if (savedTheme && PRESET_THEMES[savedTheme]) {
-    options.themeId = savedTheme;
+  customThemes.value = loadedCustoms;
+
+  if (savedTheme) {
+    const resolved = getThemeById(savedTheme, loadedCustoms);
+    options.themeId = resolved.id;
+  } else {
+    options.themeId = 'raycast-dark';
   }
   options.showOuterPadding = savedOuterPadding;
 
@@ -373,12 +447,15 @@ watch(
   () => props.visible,
   async (newVal) => {
     if (newVal) {
-      const [savedTheme, savedOuterPadding] = await Promise.all([
+      const [loadedCustoms, savedTheme, savedOuterPadding] = await Promise.all([
+        loadCustomThemes(),
         getLastCardTheme(),
         getLastShowOuterPadding(),
       ]);
-      if (savedTheme && PRESET_THEMES[savedTheme]) {
-        options.themeId = savedTheme;
+      customThemes.value = loadedCustoms;
+      if (savedTheme) {
+        const resolved = getThemeById(savedTheme, loadedCustoms);
+        options.themeId = resolved.id;
       }
       options.showOuterPadding = savedOuterPadding;
     }
@@ -419,6 +496,7 @@ watch(
         <ShareCard
           :post="post"
           :options="options"
+          :custom-themes="customThemes"
         />
       </div>
     </div>
@@ -449,52 +527,88 @@ watch(
 
       <!-- Main Body: 永久左右分栏 (右侧自由 shrink，不换行) -->
       <div class="flex-1 flex flex-row overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
-        <!-- 左侧：精简单列主题控制台 (固定宽度 w-48) -->
-        <div class="w-48 border-r border-slate-200/80 dark:border-slate-800 p-3 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 shrink-0">
-          <!-- 1. 主题选择 (单列紧凑排列) -->
+        <!-- 左侧：精简单列主题控制台 (固定宽度 w-52) -->
+        <div class="w-52 border-r border-slate-200/80 dark:border-slate-800 p-3.5 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 shrink-0">
+          <!-- 1. 主题选择 -->
           <div class="space-y-2">
-            <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5 px-1">
-              <Sparkles class="w-3.5 h-3.5 text-sky-500" />
-              卡片主题
-            </label>
-            <div class="flex flex-col gap-1.5">
-              <button
-                v-for="theme in Object.values(PRESET_THEMES)"
-                :key="theme.id"
-                @click="selectTheme(theme.id)"
-                class="group p-2 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer text-left relative overflow-hidden"
-                :class="[
-                  options.themeId === theme.id
-                    ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/40 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-semibold shadow-sm'
-                    : 'border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/80'
-                ]"
-              >
-                <!-- Mini Card Skeleton Preview -->
-                <div
-                  class="w-full h-8 rounded-lg overflow-hidden p-1.5 flex flex-col justify-between shadow-sm relative transition-transform group-hover:scale-[1.02]"
-                  :style="{
-                    background: theme.tokens.cardBackground,
-                    color: theme.tokens.textPrimary
-                  }"
+            <div class="flex items-center justify-between px-1">
+              <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles class="w-3.5 h-3.5 text-sky-500" />
+                卡片主题
+              </label>
+              <!-- 导出/导入主题入口 -->
+              <div class="flex items-center gap-1">
+                <button
+                  @click="handleExportCurrentTheme"
+                  class="p-1 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                  :title="copyThemeSuccess ? '已复制主题 JSON' : '导出/复制当前主题 JSON'"
                 >
-                  <!-- Top mini row: avatar dot + name bar -->
-                  <div class="flex items-center gap-1">
-                    <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" />
-                    <div class="w-8 h-1 rounded-full bg-current opacity-40" />
-                  </div>
-                  <!-- Bottom mini row: text line skeleton -->
-                  <div class="w-12 h-1 rounded-full bg-current opacity-30" />
-                </div>
+                  <Check v-if="copyThemeSuccess" class="w-3.5 h-3.5 text-emerald-500" />
+                  <Share2 v-else class="w-3.5 h-3.5" />
+                </button>
+                <button
+                  @click="isImportModalOpen = true"
+                  class="p-1 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                  title="导入自定义主题 (JSON)"
+                >
+                  <Upload class="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
 
-                <!-- Theme Name -->
-                <div class="flex items-center justify-between gap-1 w-full px-0.5">
-                  <span class="truncate text-[11px] leading-tight font-medium">{{ theme.name }}</span>
-                  <span
-                    v-if="options.themeId === theme.id"
-                    class="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"
-                  />
-                </div>
-              </button>
+            <!-- 主题卡片单列列表 -->
+            <div class="flex flex-col gap-1.5">
+              <div
+                v-for="theme in allThemes"
+                :key="theme.id"
+                class="group relative"
+              >
+                <button
+                  @click="selectTheme(theme.id)"
+                  class="w-full p-2 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer text-left relative overflow-hidden"
+                  :class="[
+                    options.themeId === theme.id
+                      ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/40 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-semibold shadow-sm'
+                      : 'border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/80'
+                  ]"
+                >
+                  <!-- Mini Card Skeleton Preview -->
+                  <div
+                    class="w-full h-8 rounded-lg overflow-hidden p-1.5 flex flex-col justify-between shadow-sm relative transition-transform group-hover:scale-[1.02]"
+                    :style="{
+                      background: theme.previewColor || theme.card.background,
+                      color: theme.typography.textPrimary
+                    }"
+                  >
+                    <!-- Top mini row -->
+                    <div class="flex items-center gap-1">
+                      <div class="w-1.5 h-1.5 rounded-full bg-current opacity-70 shrink-0" />
+                      <div class="w-8 h-1 rounded-full bg-current opacity-40" />
+                    </div>
+                    <!-- Bottom mini row -->
+                    <div class="w-12 h-1 rounded-full bg-current opacity-30" />
+                  </div>
+
+                  <!-- Theme Name -->
+                  <div class="flex items-center justify-between gap-1 w-full px-0.5">
+                    <span class="truncate text-[11px] leading-tight font-medium">{{ theme.name }}</span>
+                    <span
+                      v-if="options.themeId === theme.id"
+                      class="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"
+                    />
+                  </div>
+                </button>
+
+                <!-- 自定义主题删除按钮 -->
+                <button
+                  v-if="theme.id.startsWith('custom-')"
+                  @click.stop="handleDeleteTheme(theme.id)"
+                  class="absolute top-1.5 right-1.5 p-1 bg-red-500/80 hover:bg-red-600 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer shadow-sm"
+                  title="删除此自定义主题"
+                >
+                  <Trash2 class="w-2.5 h-2.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -517,7 +631,7 @@ watch(
               >
                 <div class="flex flex-col pr-1">
                   <span class="font-semibold leading-tight">背景边距</span>
-                  <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">直角外衬底</span>
+                  <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">直角外衬底与光晕</span>
                 </div>
                 <!-- Switch Pill -->
                 <div
@@ -539,7 +653,7 @@ watch(
           ref="viewportRef"
           class="flex-1 min-w-0 relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/70 select-none flex items-center justify-center min-h-0"
         >
-          <!-- 1. 全屏透明交互捕获层 (位于图片上方，统一捕获鼠标事件与光标样式，避免 GPU 图层变换产生的命中测试抖动) -->
+          <!-- 1. 全屏透明交互捕获层 -->
           <div
             class="absolute inset-0 z-10 select-none"
             :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
@@ -548,7 +662,7 @@ watch(
             @mousedown="handleMouseDown"
           />
 
-          <!-- 2. 悬浮控制工具栏 (半透明，hover 时清晰，不遮挡卡片) -->
+          <!-- 2. 悬浮控制工具栏 -->
           <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/70 hover:bg-white/95 dark:bg-slate-900/70 dark:hover:bg-slate-900/95 backdrop-blur-md shadow-md hover:shadow-xl border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-1 text-xs opacity-40 hover:opacity-100 transition-all duration-200">
             <button
               @click.stop="zoomOut"
@@ -598,7 +712,7 @@ watch(
             </button>
           </div>
 
-          <!-- 3. Loading 状态 (包含数据提取与离屏高清渲染) -->
+          <!-- 3. Loading 状态 -->
           <div
             v-if="(!post || isExtracting || isRendering) && !previewDataUrl"
             class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-sm text-slate-700 dark:text-slate-200 gap-2.5 transition-opacity pointer-events-none"
@@ -609,7 +723,7 @@ watch(
             </span>
           </div>
 
-          <!-- 4. 纯图片渲染层 (处于底层 z-0，无任何事件监听) -->
+          <!-- 4. 纯图片渲染层 -->
           <div
             v-if="previewDataUrl"
             class="shrink-0 pointer-events-none select-none z-0"
@@ -638,7 +752,7 @@ watch(
         </span>
 
         <div class="flex items-center gap-3">
-          <!-- 复制链接按钮 (非私有 AI 平台且有 URL 时展示) -->
+          <!-- 复制链接按钮 -->
           <button
             v-if="!isAiPlatform && post && post.url"
             @click="handleCopyUrl"
@@ -671,6 +785,58 @@ watch(
             <Loader2 v-if="isDownloading" class="w-4 h-4 animate-spin" />
             <Download v-else class="w-4 h-4" />
             <span>{{ isDownloading ? '正在保存...' : '下载 PNG' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 导入自定义主题 JSON 弹窗 -->
+    <div
+      v-if="isImportModalOpen"
+      class="fixed inset-0 z-[2147483648] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      @click.self="isImportModalOpen = false"
+    >
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Code class="w-5 h-5 text-sky-500" />
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">导入主题 (JSON)</h3>
+          </div>
+          <button
+            @click="isImportModalOpen = false"
+            class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          粘贴 QuickShare 主题 JSON 内容。系统会自动完成格式校验与向后兼容补全。
+        </p>
+
+        <textarea
+          v-model="importJsonInput"
+          placeholder="在此粘贴主题 JSON 内容..."
+          rows="8"
+          class="w-full font-mono text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 resize-none"
+        />
+
+        <div v-if="importError" class="text-xs text-red-500 font-medium">
+          {{ importError }}
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button
+            @click="isImportModalOpen = false"
+            class="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+          >
+            取消
+          </button>
+          <button
+            @click="handleConfirmImport"
+            class="px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            确认导入
           </button>
         </div>
       </div>
