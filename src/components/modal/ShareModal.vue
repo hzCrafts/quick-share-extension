@@ -18,7 +18,6 @@ import {
   Copy, 
   Download, 
   Check, 
-  Sparkles, 
   Maximize2, 
   ZoomIn, 
   ZoomOut, 
@@ -26,11 +25,9 @@ import {
   Loader2, 
   ArrowLeftRight, 
   Link2,
-  Layers,
   Upload,
   Share2,
-  Trash2,
-  Code
+  Trash2
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -482,7 +479,7 @@ watch(
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/60 dark:bg-black/80 backdrop-blur-sm transition-opacity text-slate-800 dark:text-slate-100 font-sans pointer-events-auto select-none"
+    class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-black/70 dark:bg-black/85 backdrop-blur-sm transition-opacity text-zinc-900 dark:text-zinc-100 font-sans pointer-events-auto select-none"
     @click.self="emit('close')"
   >
     <!-- 离屏真实未缩放渲染源 (固定标准 720px 物理排版宽度) -->
@@ -501,46 +498,41 @@ watch(
       </div>
     </div>
 
-    <!-- 模态框主体 -->
+    <!-- 模态框主体 (Raycast 风格，纯黑白两套，rounded-3xl 大圆角) -->
     <div
-      class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col h-[92vh] w-full max-w-6xl overflow-hidden border border-slate-100 dark:border-slate-800 transition-colors"
+      class="bg-white dark:bg-[#18181b] rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.28)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.7)] flex flex-col h-[90vh] w-full max-w-6xl overflow-hidden border border-zinc-200/80 dark:border-white/10 transition-colors"
     >
-      <!-- Header -->
-      <div class="px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-white dark:bg-slate-900">
-        <div class="flex items-center gap-2.5">
-          <div class="p-1.5 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 rounded-lg">
-            <Sparkles class="w-5 h-5" />
-          </div>
-          <div>
-            <h2 class="text-base font-bold text-slate-900 dark:text-white leading-none">QuickShare</h2>
-            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">从 {{ platformName }} 提取内容并高清渲染</p>
-          </div>
+      <!-- Header: 极简纯净，去 AI 味 -->
+      <div class="px-6 py-3.5 border-b border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0 bg-white dark:bg-[#18181b]">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold tracking-tight text-zinc-900 dark:text-white">QuickShare</span>
+          <span class="text-xs text-zinc-300 dark:text-zinc-700">/</span>
+          <span class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ platformName }}</span>
         </div>
 
         <button
           @click="emit('close')"
-          class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+          class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
         >
-          <X class="w-5 h-5" />
+          <X class="w-4 h-4" />
         </button>
       </div>
 
-      <!-- Main Body: 永久左右分栏 (右侧自由 shrink，不换行) -->
-      <div class="flex-1 flex flex-row overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
+      <!-- Main Body: 永久左右分栏 -->
+      <div class="flex-1 flex flex-row overflow-hidden bg-zinc-50/50 dark:bg-[#121214] min-h-0">
         <!-- 左侧：精简单列主题控制台 (固定宽度 w-52) -->
-        <div class="w-52 border-r border-slate-200/80 dark:border-slate-800 p-3.5 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 shrink-0">
+        <div class="w-52 border-r border-zinc-200/70 dark:border-white/10 p-3.5 overflow-y-auto space-y-4 bg-white dark:bg-[#18181b] shrink-0">
           <!-- 1. 主题选择 -->
           <div class="space-y-2">
             <div class="flex items-center justify-between px-1">
-              <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles class="w-3.5 h-3.5 text-sky-500" />
+              <label class="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                 卡片主题
               </label>
               <!-- 导出/导入主题入口 -->
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-0.5">
                 <button
                   @click="handleExportCurrentTheme"
-                  class="p-1 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                  class="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
                   :title="copyThemeSuccess ? '已复制主题 JSON' : '导出/复制当前主题 JSON'"
                 >
                   <Check v-if="copyThemeSuccess" class="w-3.5 h-3.5 text-emerald-500" />
@@ -548,7 +540,7 @@ watch(
                 </button>
                 <button
                   @click="isImportModalOpen = true"
-                  class="p-1 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                  class="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
                   title="导入自定义主题 (JSON)"
                 >
                   <Upload class="w-3.5 h-3.5" />
@@ -565,16 +557,16 @@ watch(
               >
                 <button
                   @click="selectTheme(theme.id)"
-                  class="w-full p-2 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer text-left relative overflow-hidden"
+                  class="w-full p-2 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1.5 cursor-pointer text-left relative overflow-hidden focus:outline-none"
                   :class="[
                     options.themeId === theme.id
-                      ? 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/40 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-semibold shadow-sm'
-                      : 'border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/80'
+                      ? 'border-zinc-900 dark:border-white/40 bg-zinc-900/5 dark:bg-white/10 text-zinc-950 dark:text-white font-semibold ring-1 ring-zinc-900/10 dark:ring-white/20 shadow-sm'
+                      : 'border-zinc-200/80 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900/40 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/60'
                   ]"
                 >
                   <!-- Mini Card Skeleton Preview -->
                   <div
-                    class="w-full h-8 rounded-lg overflow-hidden p-1.5 flex flex-col justify-between shadow-sm relative transition-transform group-hover:scale-[1.02]"
+                    class="w-full h-8 rounded-lg overflow-hidden p-1.5 flex flex-col justify-between shadow-xs relative transition-transform group-hover:scale-[1.01]"
                     :style="{
                       background: theme.previewColor || theme.card.background,
                       color: theme.typography.textPrimary
@@ -591,10 +583,10 @@ watch(
 
                   <!-- Theme Name -->
                   <div class="flex items-center justify-between gap-1 w-full px-0.5">
-                    <span class="truncate text-[11px] leading-tight font-medium">{{ theme.name }}</span>
+                    <span class="truncate text-[11px] leading-tight">{{ theme.name }}</span>
                     <span
                       v-if="options.themeId === theme.id"
-                      class="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0"
+                      class="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-white shrink-0"
                     />
                   </div>
                 </button>
@@ -613,33 +605,32 @@ watch(
           </div>
 
           <!-- 2. 卡片配置 (外层背景边距开关) -->
-          <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <label class="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5 px-1">
-              <Layers class="w-3.5 h-3.5 text-sky-500" />
+          <div class="space-y-2 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
+            <label class="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider px-1">
               卡片布局
             </label>
             <div class="flex flex-col gap-1.5">
               <button
                 type="button"
                 @click="toggleOuterPadding"
-                class="w-full flex items-center justify-between p-2 rounded-xl border text-xs font-medium transition-all cursor-pointer select-none text-left"
+                class="w-full flex items-center justify-between p-2 rounded-xl border text-xs font-medium transition-all cursor-pointer select-none text-left focus:outline-none"
                 :class="[
                   options.showOuterPadding
-                    ? 'border-sky-500/50 bg-sky-50/50 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 shadow-sm'
-                    : 'border-slate-200/90 dark:border-slate-800/90 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/80'
+                    ? 'border-zinc-900/30 dark:border-white/20 bg-zinc-900/5 dark:bg-white/5 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                    : 'border-zinc-200/80 dark:border-zinc-800/80 text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900/40 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/60'
                 ]"
               >
                 <div class="flex flex-col pr-1">
                   <span class="font-semibold leading-tight">背景边距</span>
-                  <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">直角外衬底与光晕</span>
+                  <span class="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">直角外衬底与光晕</span>
                 </div>
-                <!-- Switch Pill -->
+                <!-- Switch Pill (标准 macOS / Raycast 纯白滑块与平滑滑道) -->
                 <div
-                  class="w-8 h-4.5 rounded-full transition-colors relative flex items-center px-0.5 shrink-0"
-                  :class="options.showOuterPadding ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'"
+                  class="w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 shrink-0"
+                  :class="options.showOuterPadding ? 'bg-zinc-900 dark:bg-zinc-600' : 'bg-zinc-200 dark:bg-zinc-800 border border-zinc-300/60 dark:border-zinc-700/60'"
                 >
                   <div
-                    class="w-3.5 h-3.5 rounded-full bg-white transition-transform shadow-sm"
+                    class="w-3.5 h-3.5 rounded-full bg-white shadow-xs transition-transform duration-150"
                     :class="options.showOuterPadding ? 'translate-x-3.5' : 'translate-x-0'"
                   />
                 </div>
@@ -651,7 +642,7 @@ watch(
         <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余，自适应 shrink) -->
         <div
           ref="viewportRef"
-          class="flex-1 min-w-0 relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/70 select-none flex items-center justify-center min-h-0"
+          class="flex-1 min-w-0 relative overflow-hidden bg-zinc-100/60 dark:bg-[#0e0e10] select-none flex items-center justify-center min-h-0"
         >
           <!-- 1. 全屏透明交互捕获层 -->
           <div
@@ -662,32 +653,32 @@ watch(
             @mousedown="handleMouseDown"
           />
 
-          <!-- 2. 悬浮控制工具栏 -->
-          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/70 hover:bg-white/95 dark:bg-slate-900/70 dark:hover:bg-slate-900/95 backdrop-blur-md shadow-md hover:shadow-xl border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-1 text-xs opacity-40 hover:opacity-100 transition-all duration-200">
+          <!-- 2. 悬浮控制工具栏 (Raycast 极简小岛) -->
+          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/80 hover:bg-white/95 dark:bg-zinc-900/80 dark:hover:bg-zinc-900/95 backdrop-blur-md shadow-sm hover:shadow-md border border-zinc-200/80 dark:border-white/10 rounded-xl p-1 text-xs opacity-50 hover:opacity-100 transition-all duration-200">
             <button
               @click.stop="zoomOut"
-              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
+              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
               title="缩小 (或 Meta+向下滚轮)"
             >
               <ZoomOut class="w-4 h-4" />
             </button>
-            <span class="px-2 font-mono text-slate-600 dark:text-slate-300 text-[11px] min-w-12 text-center">
+            <span class="px-2 font-mono text-zinc-600 dark:text-zinc-400 text-[11px] min-w-12 text-center">
               {{ Math.round(scale * 100) }}%
             </span>
             <button
               @click.stop="zoomIn"
-              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
+              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
               title="放大 (或 Meta+向上滚轮)"
             >
               <ZoomIn class="w-4 h-4" />
             </button>
 
-            <div class="w-[1px] h-3.5 bg-slate-200 dark:bg-slate-700 mx-1" />
+            <div class="w-[1px] h-3.5 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
             <!-- 宽度自适应 -->
             <button
               @click.stop="fitToWidth"
-              class="p-2 hover:bg-sky-50 dark:hover:bg-sky-950/60 hover:text-sky-600 dark:hover:text-sky-400 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
+              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
               title="宽度自适应 (100% 宽度适配)"
             >
               <ArrowLeftRight class="w-4 h-4" />
@@ -696,7 +687,7 @@ watch(
             <!-- 全图自适应 -->
             <button
               @click.stop="resetToFit"
-              class="p-2 hover:bg-sky-50 dark:hover:bg-sky-950/60 hover:text-sky-600 dark:hover:text-sky-400 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
+              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
               title="全图自适应 (整张完整可见)"
             >
               <Maximize2 class="w-4 h-4" />
@@ -705,7 +696,7 @@ watch(
             <!-- 100% 原始大小 -->
             <button
               @click.stop="setOriginalSize"
-              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg transition-colors cursor-pointer"
+              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
               title="100% 原始比例"
             >
               <RotateCcw class="w-4 h-4" />
@@ -715,10 +706,10 @@ watch(
           <!-- 3. Loading 状态 -->
           <div
             v-if="(!post || isExtracting || isRendering) && !previewDataUrl"
-            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-sm text-slate-700 dark:text-slate-200 gap-2.5 transition-opacity pointer-events-none"
+            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-zinc-900/80 backdrop-blur-sm text-zinc-800 dark:text-zinc-200 gap-2.5 transition-opacity pointer-events-none"
           >
-            <Loader2 class="w-8 h-8 animate-spin text-sky-600 will-change-transform" />
-            <span class="text-xs font-semibold tracking-wide">
+            <Loader2 class="w-7 h-7 animate-spin text-zinc-900 dark:text-white will-change-transform" />
+            <span class="text-xs font-medium tracking-wide text-zinc-600 dark:text-zinc-400">
               {{ !post || isExtracting ? '正在解析内容与高清资源...' : '正在生成高清卡片...' }}
             </span>
           </div>
@@ -746,21 +737,21 @@ watch(
       </div>
 
       <!-- Footer: 操作栏 -->
-      <div class="px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-        <span class="text-xs text-slate-400 dark:text-slate-500">
+      <div class="px-6 py-3.5 bg-white dark:bg-[#18181b] border-t border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0">
+        <span class="text-xs text-zinc-400 dark:text-zinc-500">
           {{ !post || isExtracting || isRendering ? '处理中 • 请稍候...' : '已就绪 • 2.5x Retina 超高清完整长图导出' }}
         </span>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2.5">
           <!-- 复制链接按钮 -->
           <button
             v-if="!isAiPlatform && post && post.url"
             @click="handleCopyUrl"
             :disabled="!post || isExtracting || isRendering"
-            class="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            class="px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <Check v-if="copyUrlSuccess" class="w-4 h-4 text-emerald-500" />
-            <Link2 v-else class="w-4 h-4 text-slate-500 dark:text-slate-400" />
+            <Check v-if="copyUrlSuccess" class="w-3.5 h-3.5 text-emerald-500" />
+            <Link2 v-else class="w-3.5 h-3.5 text-zinc-400" />
             <span>{{ copyUrlSuccess ? '已复制链接' : '复制链接' }}</span>
           </button>
 
@@ -768,22 +759,22 @@ watch(
           <button
             @click="handleCopy"
             :disabled="!post || isExtracting || isRendering || isCopying"
-            class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            class="px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <Check v-if="copySuccess" class="w-4 h-4 text-emerald-500" />
-            <Loader2 v-else-if="isCopying" class="w-4 h-4 animate-spin text-slate-500 dark:text-slate-400" />
-            <Copy v-else class="w-4 h-4" />
+            <Check v-if="copySuccess" class="w-3.5 h-3.5 text-emerald-500" />
+            <Loader2 v-else-if="isCopying" class="w-3.5 h-3.5 animate-spin text-zinc-400" />
+            <Copy v-else class="w-3.5 h-3.5 text-zinc-400" />
             <span>{{ copySuccess ? '已复制到剪切板' : isCopying ? '正在复制...' : '复制图片' }}</span>
           </button>
 
-          <!-- 下载 PNG 按钮 -->
+          <!-- 下载 PNG 按钮 (Raycast 纯黑白主按钮) -->
           <button
             @click="handleDownload"
             :disabled="!post || isExtracting || isRendering || isDownloading"
-            class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white text-sm font-semibold shadow-md shadow-sky-500/20 dark:shadow-sky-950/40 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-100 dark:active:bg-zinc-200 dark:text-zinc-900 text-xs font-semibold shadow-xs hover:shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <Loader2 v-if="isDownloading" class="w-4 h-4 animate-spin" />
-            <Download v-else class="w-4 h-4" />
+            <Loader2 v-if="isDownloading" class="w-3.5 h-3.5 animate-spin" />
+            <Download v-else class="w-3.5 h-3.5" />
             <span>{{ isDownloading ? '正在保存...' : '下载 PNG' }}</span>
           </button>
         </div>
@@ -796,21 +787,18 @@ watch(
       class="fixed inset-0 z-[2147483648] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       @click.self="isImportModalOpen = false"
     >
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+      <div class="bg-white dark:bg-[#18181b] border border-zinc-200 dark:border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <Code class="w-5 h-5 text-sky-500" />
-            <h3 class="text-base font-bold text-slate-900 dark:text-white">导入主题 (JSON)</h3>
-          </div>
+          <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">导入主题 (JSON)</h3>
           <button
             @click="isImportModalOpen = false"
-            class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+            class="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg cursor-pointer"
           >
             <X class="w-4 h-4" />
           </button>
         </div>
 
-        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+        <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
           粘贴 QuickShare 主题 JSON 内容。系统会自动完成格式校验与向后兼容补全。
         </p>
 
@@ -818,7 +806,7 @@ watch(
           v-model="importJsonInput"
           placeholder="在此粘贴主题 JSON 内容..."
           rows="8"
-          class="w-full font-mono text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 resize-none"
+          class="w-full font-mono text-xs p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white focus:border-zinc-900 dark:focus:border-white resize-none"
         />
 
         <div v-if="importError" class="text-xs text-red-500 font-medium">
@@ -828,13 +816,13 @@ watch(
         <div class="flex items-center justify-end gap-2 pt-2">
           <button
             @click="isImportModalOpen = false"
-            class="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            class="px-3.5 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
           >
             取消
           </button>
           <button
             @click="handleConfirmImport"
-            class="px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-xl transition-colors shadow-sm cursor-pointer"
+            class="px-4 py-1.5 text-xs font-semibold text-white bg-zinc-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-100 dark:text-zinc-900 rounded-xl transition-colors shadow-xs cursor-pointer"
           >
             确认导入
           </button>
