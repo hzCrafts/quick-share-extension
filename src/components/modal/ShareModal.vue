@@ -231,6 +231,7 @@ const handleWheel = (e: WheelEvent) => {
  */
 const handleMouseDown = (e: MouseEvent) => {
   if (e.button !== 0) return;
+  e.preventDefault();
   isDragging.value = true;
   dragStartX.value = e.clientX;
   dragStartY.value = e.clientY;
@@ -240,6 +241,7 @@ const handleMouseDown = (e: MouseEvent) => {
 
 const handleMouseMove = (e: MouseEvent) => {
   if (!isDragging.value) return;
+  e.preventDefault();
   const deltaX = e.clientX - dragStartX.value;
   const deltaY = e.clientY - dragStartY.value;
   translateX.value = initialTranslateX.value + deltaX;
@@ -350,6 +352,7 @@ onMounted(async () => {
     });
     resizeObserver.observe(viewportRef.value);
   }
+  window.addEventListener('mousemove', handleMouseMove);
   window.addEventListener('mouseup', handleMouseUp);
 });
 
@@ -358,6 +361,7 @@ onUnmounted(() => {
     resizeObserver.disconnect();
     resizeObserver = null;
   }
+  window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', handleMouseUp);
   if (renderTimer) clearTimeout(renderTimer);
   if (previewDataUrl.value) {
@@ -534,12 +538,17 @@ watch(
         <div
           ref="viewportRef"
           class="flex-1 min-w-0 relative overflow-hidden bg-slate-900/5 dark:bg-slate-950/70 select-none flex items-center justify-center min-h-0"
-          :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
-          @wheel.prevent="handleWheel"
-          @mousedown="handleMouseDown"
-          @mousemove="handleMouseMove"
         >
-          <!-- 悬浮控制工具栏 (半透明，hover 时清晰，不遮挡卡片) -->
+          <!-- 1. 全屏透明交互捕获层 (位于图片上方，统一捕获鼠标事件与光标样式，避免 GPU 图层变换产生的命中测试抖动) -->
+          <div
+            class="absolute inset-0 z-10 select-none"
+            :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
+            :style="{ cursor: isDragging ? 'grabbing' : 'grab' }"
+            @wheel.prevent="handleWheel"
+            @mousedown="handleMouseDown"
+          />
+
+          <!-- 2. 悬浮控制工具栏 (半透明，hover 时清晰，不遮挡卡片) -->
           <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/70 hover:bg-white/95 dark:bg-slate-900/70 dark:hover:bg-slate-900/95 backdrop-blur-md shadow-md hover:shadow-xl border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-1 text-xs opacity-40 hover:opacity-100 transition-all duration-200">
             <button
               @click.stop="zoomOut"
@@ -589,10 +598,10 @@ watch(
             </button>
           </div>
 
-          <!-- Loading 状态 (包含数据提取与离屏高清渲染) -->
+          <!-- 3. Loading 状态 (包含数据提取与离屏高清渲染) -->
           <div
             v-if="(!post || isExtracting || isRendering) && !previewDataUrl"
-            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-sm text-slate-700 dark:text-slate-200 gap-2.5 transition-opacity"
+            class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-slate-900/80 backdrop-blur-sm text-slate-700 dark:text-slate-200 gap-2.5 transition-opacity pointer-events-none"
           >
             <Loader2 class="w-8 h-8 animate-spin text-sky-600 will-change-transform" />
             <span class="text-xs font-semibold tracking-wide">
@@ -600,10 +609,10 @@ watch(
             </span>
           </div>
 
-          <!-- 纯图片渲染层 -->
+          <!-- 4. 纯图片渲染层 (处于底层 z-0，无任何事件监听) -->
           <div
             v-if="previewDataUrl"
-            class="shrink-0"
+            class="shrink-0 pointer-events-none select-none z-0"
             :style="{
               transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
               transformOrigin: 'center center',
@@ -612,7 +621,7 @@ watch(
             <img
               :src="previewDataUrl"
               alt="Card Preview"
-              class="shadow-2xl rounded-none pointer-events-none max-w-none block"
+              class="shadow-2xl rounded-none pointer-events-none max-w-none block select-none"
               :style="{
                 width: `${imageNaturalWidth}px`,
                 height: `${imageNaturalHeight}px`,

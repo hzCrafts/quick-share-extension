@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { PostData } from '@/types/post';
 import ShareModal from '@/components/modal/ShareModal.vue';
 import { getUiThemeMode, onStorageChanged, KEY_UI_THEME_MODE, type UiThemeMode } from '@/utils/storage';
@@ -7,6 +7,17 @@ import { getUiThemeMode, onStorageChanged, KEY_UI_THEME_MODE, type UiThemeMode }
 const currentPost = ref<PostData | null>(null);
 const isModalVisible = ref(false);
 const isExtracting = ref(false);
+
+// 动态同步 Shadow DOM Host 容器的 pointer-events
+// 弹窗开启时捕获整屏事件，避免浏览器在宿主页面与扩展弹窗之间冲突跳动光标；关闭时穿透宿主页面
+watch(isModalVisible, (visible) => {
+  try {
+    const rootHost = document.querySelector('quick-share-ui-container') as HTMLElement | null;
+    if (rootHost) {
+      rootHost.style.setProperty('pointer-events', visible ? 'auto' : 'none', 'important');
+    }
+  } catch {}
+});
 
 // UI 模式与深色模式状态管理
 const uiMode = ref<UiThemeMode>('system');
@@ -144,9 +155,19 @@ defineExpose({
 
 <template>
   <div
-    class="quick-share-root font-sans antialiased pointer-events-none"
-    :class="{ dark: isDarkMode }"
-    style="position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2147483647; pointer-events: none;"
+    class="quick-share-root font-sans antialiased"
+    :class="[
+      { dark: isDarkMode },
+      isModalVisible ? 'pointer-events-auto' : 'pointer-events-none'
+    ]"
+    :style="{
+      position: 'fixed',
+      inset: '0',
+      width: '100vw',
+      height: '100vh',
+      zIndex: 2147483647,
+      pointerEvents: isModalVisible ? 'auto' : 'none'
+    }"
   >
     <!-- 划词悬浮快捷唤起按钮 -->
     <div
