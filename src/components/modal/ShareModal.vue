@@ -27,7 +27,11 @@ import {
   Link2,
   Upload,
   Share2,
-  Trash2
+  Trash2,
+  Code2,
+  Image as ImageIcon,
+  Terminal,
+  FileCode
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -47,6 +51,11 @@ const emit = defineEmits<{
 
 const isAiPlatform = computed(() => props.post?.platform === 'chatgpt' || props.post?.platform === 'gemini');
 const platformName = computed(() => props.post?.platform ? props.post.platform.toUpperCase() : '网页');
+
+// 视图模式：'image' (默认 2.5x 离屏渲染图片) | 'dom' (真实 DOM 调试模式)
+const viewMode = ref<'image' | 'dom'>('image');
+const copyHtmlSuccess = ref(false);
+const logConsoleSuccess = ref(false);
 
 // 离屏渲染与视口引用
 const offscreenCardRef = ref<HTMLElement | null>(null);
@@ -395,6 +404,56 @@ const handleDeleteTheme = async (themeId: string) => {
   }
 };
 
+// 复制解析后的富文本 HTML（用于对比原网站 DOM）
+const handleCopyHtml = async () => {
+  if (!props.post?.contentHtml && !props.post?.content) return;
+  try {
+    await navigator.clipboard.writeText(props.post.contentHtml || props.post.content);
+    copyHtmlSuccess.value = true;
+    setTimeout(() => {
+      copyHtmlSuccess.value = false;
+    }, 2000);
+  } catch (err) {
+    console.error('[QuickShare] 复制 HTML 失败:', err);
+  }
+};
+
+// 在控制台格式化打印 PostData 并挂载全局变量
+const handleLogToConsole = () => {
+  if (!props.post) return;
+  console.group('🔍 [QuickShare Debug] PostData 解析结构详情');
+  console.log('Platform:', props.post.platform);
+  console.log('Title:', props.post.title);
+  console.log('Author:', props.post.author);
+  console.log('URL:', props.post.url);
+  console.log('Is Excerpt:', props.post.isExcerpt);
+  console.log('Content (纯文本):\n', props.post.content);
+  console.log('ContentHtml (富文本):\n', props.post.contentHtml);
+  console.log('完整对象:', props.post);
+  console.log('💡 全局变量已挂载: window.__QUICK_SHARE_POST__');
+  console.groupEnd();
+
+  if (typeof window !== 'undefined') {
+    (window as any).__QUICK_SHARE_POST__ = props.post;
+  }
+
+  logConsoleSuccess.value = true;
+  setTimeout(() => {
+    logConsoleSuccess.value = false;
+  }, 2000);
+};
+
+// 快捷键切换调试模式 (Alt + D 或 Cmd/Ctrl + Shift + D)
+const handleKeyDown = (e: KeyboardEvent) => {
+  if ((e.altKey && (e.key === 'd' || e.key === 'D')) || ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'd' || e.key === 'D'))) {
+    e.preventDefault();
+    viewMode.value = viewMode.value === 'image' ? 'dom' : 'image';
+    if (viewMode.value === 'dom') {
+      handleLogToConsole();
+    }
+  }
+};
+
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(async () => {
@@ -415,6 +474,9 @@ onMounted(async () => {
   options.showOuterPadding = savedOuterPadding;
 
   if (props.post) {
+    if (typeof window !== 'undefined') {
+      (window as any).__QUICK_SHARE_POST__ = props.post;
+    }
     triggerRender();
   }
   if (viewportRef.value) {
@@ -425,6 +487,7 @@ onMounted(async () => {
   }
   window.addEventListener('mousemove', handleMouseMove);
   window.addEventListener('mouseup', handleMouseUp);
+  window.addEventListener('keydown', handleKeyDown);
 });
 
 onUnmounted(() => {
@@ -434,6 +497,7 @@ onUnmounted(() => {
   }
   window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', handleMouseUp);
+  window.removeEventListener('keydown', handleKeyDown);
   if (renderTimer) clearTimeout(renderTimer);
   if (previewDataUrl.value) {
     URL.revokeObjectURL(previewDataUrl.value);
@@ -503,19 +567,45 @@ watch(
       class="bg-white dark:bg-[#18181b] rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.28)] dark:shadow-[0_30px_90px_rgba(0,0,0,0.7)] flex flex-col h-[90vh] w-full max-w-6xl overflow-hidden border border-zinc-200/80 dark:border-white/10 transition-colors"
     >
       <!-- Header: 极简纯净，去 AI 味 -->
-      <div class="px-6 py-3.5 border-b border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0 bg-white dark:bg-[#18181b]">
+      <div class="px-6 py-3 border-b border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0 bg-white dark:bg-[#18181b]">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold tracking-tight text-zinc-900 dark:text-white">QuickShare</span>
           <span class="text-xs text-zinc-300 dark:text-zinc-700">/</span>
           <span class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ platformName }}</span>
         </div>
 
-        <button
-          @click="emit('close')"
-          class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-        >
-          <X class="w-4 h-4" />
-        </button>
+        <div class="flex items-center gap-3">
+          <!-- 模式切换：预览图 vs 真实 DOM (调试) -->
+          <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-xl border border-zinc-200/60 dark:border-white/5 text-xs">
+            <button
+              type="button"
+              @click="viewMode = 'image'"
+              class="px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer select-none"
+              :class="viewMode === 'image' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-semibold' : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+            >
+              <ImageIcon class="w-3.5 h-3.5" />
+              <span>预览图</span>
+            </button>
+            <button
+              type="button"
+              @click="viewMode = 'dom'; handleLogToConsole();"
+              class="px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer select-none"
+              :class="viewMode === 'dom' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-semibold' : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+              title="切换到真实 DOM 结构（方便使用 DevTools 审查元素与排查 DOM 结构）[快捷键: Alt+D]"
+            >
+              <Code2 class="w-3.5 h-3.5" />
+              <span>真实 DOM</span>
+              <span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono font-medium">DEBUG</span>
+            </button>
+          </div>
+
+          <button
+            @click="emit('close')"
+            class="p-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <!-- Main Body: 永久左右分栏 -->
@@ -639,13 +729,15 @@ watch(
           </div>
         </div>
 
-        <!-- 右侧：纯图片画布区 (无缩放下限，长图一览无余，自适应 shrink) -->
+        <!-- 右侧：视口渲染区 (支持 2.5x 高清图片预览模式 与 活体 DOM 审查调试模式) -->
         <div
           ref="viewportRef"
-          class="flex-1 min-w-0 relative overflow-hidden bg-zinc-100/60 dark:bg-[#0e0e10] select-none flex items-center justify-center min-h-0"
+          class="flex-1 min-w-0 relative overflow-hidden bg-zinc-100/60 dark:bg-[#0e0e10] flex items-center justify-center min-h-0"
+          :class="viewMode === 'dom' ? 'select-text' : 'select-none'"
         >
-          <!-- 1. 全屏透明交互捕获层 -->
+          <!-- 1. 全屏透明交互捕获层 (仅在图片预览模式下启用拖拽平移与滚轮缩放) -->
           <div
+            v-if="viewMode === 'image'"
             class="absolute inset-0 z-10 select-none"
             :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
             :style="{ cursor: isDragging ? 'grabbing' : 'grab' }"
@@ -654,7 +746,33 @@ watch(
           />
 
           <!-- 2. 悬浮控制工具栏 (Raycast 极简小岛) -->
-          <div class="absolute top-4 right-4 z-20 flex items-center gap-1 bg-white/80 hover:bg-white/95 dark:bg-zinc-900/80 dark:hover:bg-zinc-900/95 backdrop-blur-md shadow-sm hover:shadow-md border border-zinc-200/80 dark:border-white/10 rounded-xl p-1 text-xs opacity-50 hover:opacity-100 transition-all duration-200">
+          <div class="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-white/80 hover:bg-white/95 dark:bg-zinc-900/80 dark:hover:bg-zinc-900/95 backdrop-blur-md shadow-sm hover:shadow-md border border-zinc-200/80 dark:border-white/10 rounded-xl p-1 text-xs opacity-70 hover:opacity-100 transition-all duration-200">
+            <!-- DOM 模式专属快捷辅助按钮 -->
+            <template v-if="viewMode === 'dom'">
+              <button
+                @click.stop="handleCopyHtml"
+                class="px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                :title="copyHtmlSuccess ? '已复制 contentHtml' : '复制解析后的 contentHtml 到剪切板'"
+              >
+                <Check v-if="copyHtmlSuccess" class="w-3.5 h-3.5 text-emerald-500" />
+                <FileCode v-else class="w-3.5 h-3.5" />
+                <span class="text-[11px]">{{ copyHtmlSuccess ? '已复制' : '复制 HTML' }}</span>
+              </button>
+
+              <button
+                @click.stop="handleLogToConsole"
+                class="px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                title="在控制台打印 PostData 结构 (window.__QUICK_SHARE_POST__)"
+              >
+                <Check v-if="logConsoleSuccess" class="w-3.5 h-3.5 text-emerald-500" />
+                <Terminal v-else class="w-3.5 h-3.5" />
+                <span class="text-[11px]">{{ logConsoleSuccess ? '已打印' : '控制台打印' }}</span>
+              </button>
+
+              <div class="w-[1px] h-3.5 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+            </template>
+
+            <!-- 缩放控制 -->
             <button
               @click.stop="zoomOut"
               class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
@@ -662,7 +780,7 @@ watch(
             >
               <ZoomOut class="w-4 h-4" />
             </button>
-            <span class="px-2 font-mono text-zinc-600 dark:text-zinc-400 text-[11px] min-w-12 text-center">
+            <span class="px-1.5 font-mono text-zinc-600 dark:text-zinc-400 text-[11px] min-w-10 text-center">
               {{ Math.round(scale * 100) }}%
             </span>
             <button
@@ -673,25 +791,27 @@ watch(
               <ZoomIn class="w-4 h-4" />
             </button>
 
-            <div class="w-[1px] h-3.5 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+            <!-- Image 模式专属全屏/宽度自适应 -->
+            <template v-if="viewMode === 'image'">
+              <div class="w-[1px] h-3.5 bg-zinc-200 dark:bg-zinc-700 mx-0.5" />
+              <!-- 宽度自适应 -->
+              <button
+                @click.stop="fitToWidth"
+                class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
+                title="宽度自适应 (100% 宽度适配)"
+              >
+                <ArrowLeftRight class="w-4 h-4" />
+              </button>
 
-            <!-- 宽度自适应 -->
-            <button
-              @click.stop="fitToWidth"
-              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="宽度自适应 (100% 宽度适配)"
-            >
-              <ArrowLeftRight class="w-4 h-4" />
-            </button>
-
-            <!-- 全图自适应 -->
-            <button
-              @click.stop="resetToFit"
-              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="全图自适应 (整张完整可见)"
-            >
-              <Maximize2 class="w-4 h-4" />
-            </button>
+              <!-- 全图自适应 -->
+              <button
+                @click.stop="resetToFit"
+                class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
+                title="全图自适应 (整张完整可见)"
+              >
+                <Maximize2 class="w-4 h-4" />
+              </button>
+            </template>
 
             <!-- 100% 原始大小 -->
             <button
@@ -705,7 +825,7 @@ watch(
 
           <!-- 3. Loading 状态 -->
           <div
-            v-if="(!post || isExtracting || isRendering) && !previewDataUrl"
+            v-if="(!post || isExtracting || isRendering) && !previewDataUrl && viewMode === 'image'"
             class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-zinc-900/80 backdrop-blur-sm text-zinc-800 dark:text-zinc-200 gap-2.5 transition-opacity pointer-events-none"
           >
             <Loader2 class="w-7 h-7 animate-spin text-zinc-900 dark:text-white will-change-transform" />
@@ -714,9 +834,29 @@ watch(
             </span>
           </div>
 
-          <!-- 4. 纯图片渲染层 -->
+          <!-- 4.1 DOM 真实结构调试渲染层 (Live DOM 模式，文本可划选，允许使用 DevTools Inspect 审查) -->
           <div
-            v-if="previewDataUrl"
+            v-if="viewMode === 'dom' && post"
+            class="w-full h-full overflow-y-auto overflow-x-hidden p-6 sm:p-10 flex justify-center items-start select-text cursor-auto z-0"
+          >
+            <div
+              class="w-[720px] max-w-[720px] shrink-0 shadow-2xl transition-transform my-auto pointer-events-auto"
+              :style="{
+                transform: scale !== 1 ? `scale(${scale})` : undefined,
+                transformOrigin: 'top center',
+              }"
+            >
+              <ShareCard
+                :post="post"
+                :options="options"
+                :custom-themes="customThemes"
+              />
+            </div>
+          </div>
+
+          <!-- 4.2 纯图片渲染层 (Image 预览图模式) -->
+          <div
+            v-else-if="viewMode === 'image' && previewDataUrl"
             class="shrink-0 pointer-events-none select-none z-0"
             :style="{
               transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
@@ -739,7 +879,12 @@ watch(
       <!-- Footer: 操作栏 -->
       <div class="px-6 py-3.5 bg-white dark:bg-[#18181b] border-t border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0">
         <span class="text-xs text-zinc-400 dark:text-zinc-500">
-          {{ !post || isExtracting || isRendering ? '处理中 • 请稍候...' : '已就绪 • 2.5x Retina 超高清完整长图导出' }}
+          <template v-if="viewMode === 'dom'">
+            🛠️ DOM 调试模式 • 可直接使用 DevTools 审查元素与排查 DOM 结构 (快捷键: Alt+D)
+          </template>
+          <template v-else>
+            {{ !post || isExtracting || isRendering ? '处理中 • 请稍候...' : '已就绪 • 2.5x Retina 超高清完整长图导出' }}
+          </template>
         </span>
 
         <div class="flex items-center gap-2.5">
