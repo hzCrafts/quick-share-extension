@@ -1,0 +1,153 @@
+import { describe, it, expect } from 'vitest';
+import { mount } from '@vue/test-utils';
+import ShareCard from '@/components/card/ShareCard.vue';
+import type { PostData } from '@/types/post';
+import type { CardRenderOptions } from '@/types/theme';
+
+describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
+  const defaultOptions: CardRenderOptions = {
+    themeId: 'raycast-dark',
+    showOuterPadding: true,
+    padding: 24,
+    showQrCode: false,
+    showWatermark: false,
+    showStats: false,
+    fontScale: 1.0,
+    cardRadius: 16,
+    authorAvatarRadius: 'rounded-full',
+    aspectRatio: 'auto',
+  };
+
+  const samplePost: PostData = {
+    id: 'https://www.zhihu.com/question/123/answer/456',
+    platform: 'zhihu',
+    url: 'https://www.zhihu.com/question/123/answer/456',
+    title: '现代前端工程化演进思考',
+    author: {
+      name: 'Ryan Cui',
+      handle: '@ryancui',
+      avatarUrl: 'https://example.com/avatar.jpg',
+    },
+    content: '第一段：架构与抽象\n第二段：代码示例 vitest',
+    contentHtml: '<p>第一段：架构与抽象</p><p>第二段：代码示例 <code>vitest</code></p>',
+    createdAt: '2026-09-01T12:00:00.000Z',
+  };
+
+  describe('1. 基础 DOM 结构与元数据渲染', () => {
+    it('正确渲染卡片作者名、Title、Favicon 与正文段落结构', () => {
+      const wrapper = mount(ShareCard, {
+        props: {
+          post: samplePost,
+          options: defaultOptions,
+        },
+      });
+
+      // 验证作者信息
+      expect(wrapper.text()).toContain('Ryan Cui');
+      expect(wrapper.text()).toContain('@ryancui');
+
+      // 验证 Title 存在且内容正确
+      expect(wrapper.text()).toContain('现代前端工程化演进思考');
+
+      // 验证正文富文本内部各个 <p> 段落节点完整存在于 DOM 中
+      const paragraphs = wrapper.findAll('.quick-share-rich-body p, p');
+      expect(paragraphs.length).toBeGreaterThanOrEqual(2);
+      expect(wrapper.html()).toContain('第一段：架构与抽象');
+      expect(wrapper.html()).toContain('<code>vitest</code>');
+    });
+
+    it('当 post.title 为空时不渲染标题容器', () => {
+      const postWithoutTitle: PostData = {
+        ...samplePost,
+        title: undefined,
+      };
+
+      const wrapper = mount(ShareCard, {
+        props: {
+          post: postWithoutTitle,
+          options: defaultOptions,
+        },
+      });
+
+      // 验证标题文本不存在
+      expect(wrapper.text()).not.toContain('现代前端工程化演进思考');
+    });
+  });
+
+  describe('2. 外层背景边距 (showOuterPadding) 结构切换', () => {
+    it('开启与关闭外层边距时正确切换外层容器与直角背景', async () => {
+      const wrapper = mount(ShareCard, {
+        props: {
+          post: samplePost,
+          options: {
+            ...defaultOptions,
+            showOuterPadding: true,
+          },
+        },
+      });
+
+      // 开启时外层包装存在
+      expect(wrapper.find('.has-outer-padding').exists()).toBe(true);
+
+      // 关闭外层背景边距
+      await wrapper.setProps({
+        options: {
+          ...defaultOptions,
+          showOuterPadding: false,
+        },
+      });
+
+      expect(wrapper.find('.has-outer-padding').exists()).toBe(false);
+    });
+  });
+
+  describe('3. 金句引述 (Excerpt) 划词模式 DOM 渲染', () => {
+    it('渲染金句模式下的 spotlight-focus 结构，保留前后渐隐文字', () => {
+      const excerptPost: PostData = {
+        ...samplePost,
+        isExcerpt: true,
+        content: '核心金句内容',
+        contentHtml: '<span class="spotlight-focus">核心金句内容</span>',
+        excerptBeforeHtml: '<span class="fade-in-blur">前文：</span>',
+        excerptAfterHtml: '<span class="fade-out-blur">后文...</span>',
+      };
+
+      const wrapper = mount(ShareCard, {
+        props: {
+          post: excerptPost,
+          options: defaultOptions,
+        },
+      });
+
+      expect(wrapper.find('.spotlight-focus').exists()).toBe(true);
+      expect(wrapper.find('.spotlight-focus').text()).toBe('核心金句内容');
+      expect(wrapper.find('.fade-in-blur').exists()).toBe(true);
+      expect(wrapper.find('.fade-out-blur').exists()).toBe(true);
+    });
+  });
+
+  describe('4. 多图 (Media) 媒体渲染', () => {
+    it('存在 post.media 且无 contentHtml 时正确渲染图片标签与原图 src', () => {
+      const imagePost: PostData = {
+        ...samplePost,
+        contentHtml: undefined,
+        media: [
+          { type: 'image', url: 'https://example.com/img1.png' },
+          { type: 'image', url: 'https://example.com/img2.png' },
+        ],
+      };
+
+      const wrapper = mount(ShareCard, {
+        props: {
+          post: imagePost,
+          options: defaultOptions,
+        },
+      });
+
+      const imgs = wrapper.findAll('.qs-media-img');
+      expect(imgs.length).toBe(2);
+      expect(imgs[0].attributes('src')).toBe('https://example.com/img1.png');
+      expect(imgs[1].attributes('src')).toBe('https://example.com/img2.png');
+    });
+  });
+});

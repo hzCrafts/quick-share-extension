@@ -147,8 +147,18 @@ export function sanitizeHtmlForCard(html: string): string {
     temp.innerHTML = html;
     sanitizeDomForScreenshot(temp);
 
-    // 清洗可能污染卡片主题的外部暗色/行内颜色属性
+    // 0. 安全清洗：移除潜在脚本与内联危险标签
+    temp.querySelectorAll('script, style, iframe, object, embed, meta, link').forEach((el) => el.remove());
+
+    // 清洗可能污染卡片主题的外部暗色/行内颜色属性与内联 on* 事件
     temp.querySelectorAll('*').forEach((el) => {
+      // 移除所有 on* 事件属性 (如 onclick, onerror)
+      Array.from(el.attributes).forEach((attr) => {
+        if (attr.name.toLowerCase().startsWith('on')) {
+          el.removeAttribute(attr.name);
+        }
+      });
+
       const isInsideCode = el.closest('pre, code');
       if (!isInsideCode) {
         // 清理 class 中包含的 dark、prose-invert 等破坏性类

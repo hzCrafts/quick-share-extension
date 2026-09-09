@@ -11,7 +11,9 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
-    "compile": "vue-tsc --noEmit"
+    "compile": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -25,10 +27,13 @@
     "@types/node": "^22.13.9",
     "@types/qrcode": "^1.5.5",
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.5.0",
     "autoprefixer": "^10.4.20",
+    "happy-dom": "^20.14.0",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
+    "vitest": "^5.0.0",
     "vue-tsc": "^2.2.8",
     "wxt": "^0.19.28"
   },

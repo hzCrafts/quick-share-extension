@@ -147,12 +147,15 @@ export class XAdapter extends BaseAdapter {
       }
 
       const avatarEl = tweet.querySelector<HTMLImageElement>('div[data-testid="Tweet-User-Avatar"] img');
-      const avatarUrl = avatarEl?.src;
+      const avatarUrl = avatarEl?.getAttribute('src') || avatarEl?.src;
 
       // 提取时间与原文链接并清洗
       const timeEl = tweet.querySelector('time');
       const timeParentLink = timeEl?.closest('a');
-      const rawUrl = timeParentLink ? (timeParentLink as HTMLAnchorElement).href : window.location.href;
+      let rawUrl = timeParentLink ? (timeParentLink.getAttribute('href') || timeParentLink.href) : window.location.href;
+      if (rawUrl.startsWith('/')) {
+        rawUrl = `https://x.com${rawUrl}`;
+      }
       const cleanUrl = cleanShareUrl(rawUrl);
 
       // 1. 提取正文内容与富文本 HTML
@@ -186,6 +189,7 @@ export class XAdapter extends BaseAdapter {
             a.replaceWith(span);
           });
           content = clone.textContent?.trim() || '';
+          contentHtml = sanitizeHtmlForCard(clone.innerHTML);
         }
 
         // 检查 video
@@ -214,6 +218,9 @@ export class XAdapter extends BaseAdapter {
         // 如果正文中未包含卡片链接，则附在正文末尾（排版位于图片上方）
         if (cardUrl && !content.includes(cardUrl)) {
           content = content ? `${content}\n\n${cardUrl}` : cardUrl;
+          if (contentHtml) {
+            contentHtml += `<p><a href="${cardUrl}">${cardUrl}</a></p>`;
+          }
         }
       }
 

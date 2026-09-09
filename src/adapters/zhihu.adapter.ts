@@ -167,8 +167,16 @@ export class ZhihuAdapter extends BaseAdapter {
   }
 
   async extract(item?: HTMLElement, selection?: ExcerptSelection): Promise<PostData | null> {
-    if (!item) {
-      return this.extractArticle(selection);
+    const isArticle = item && (
+      item.classList.contains('Post-NormalMain') ||
+      item.classList.contains('Post-Main') ||
+      item.classList.contains('Post-content') ||
+      item.classList.contains('PostIndex-content') ||
+      Boolean(item.querySelector('.Post-Title, .Post-Header, .Post-content'))
+    );
+
+    if (!item || isArticle) {
+      return this.extractArticle(item, selection);
     }
 
     try {
@@ -177,13 +185,24 @@ export class ZhihuAdapter extends BaseAdapter {
       const title = titleEl?.textContent?.trim() || '';
 
       // 提取作者信息
-      const authorEl = item.querySelector('.AuthorInfo-name .UserLink-link');
-      const name = authorEl?.textContent?.trim() || '匿名用户';
+      const authorEl = item.querySelector('.AuthorInfo-name .UserLink-link, .AuthorInfo-head .UserLink-link, .UserLink-link');
+      let name = authorEl?.textContent?.trim();
+      if (!name || name === '匿名用户') {
+        try {
+          const zop = item.getAttribute('data-zop');
+          if (zop) {
+            const parsed = JSON.parse(zop);
+            if (parsed.authorName) name = parsed.authorName;
+          }
+        } catch {}
+      }
+      if (!name) name = '匿名用户';
+
       const headlineEl = item.querySelector('.AuthorInfo-badgeText, .AuthorInfo-detail');
       const handle = headlineEl?.textContent?.trim() || '知乎答主';
 
       const avatarEl = item.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar');
-      const avatarUrl = avatarEl?.src;
+      const avatarUrl = avatarEl?.getAttribute('src') || avatarEl?.src;
 
       // 提取富文本内容或划选富文本
       const richContentEl = item.querySelector<HTMLElement>('.RichContent-inner, .RichText');
@@ -281,14 +300,15 @@ export class ZhihuAdapter extends BaseAdapter {
     }
   }
 
-  private async extractArticle(selection?: ExcerptSelection): Promise<PostData | null> {
+  private async extractArticle(item?: HTMLElement, selection?: ExcerptSelection): Promise<PostData | null> {
     try {
-      const title = document.querySelector('.Post-Title, .PostIndex-title')?.textContent?.trim() || document.title;
-      const authorEl = document.querySelector('.AuthorInfo-name .UserLink-link, .PostIndex-authorName, .AuthorInfo-head');
+      const root = item || document;
+      const title = root.querySelector('.Post-Title, .PostIndex-title')?.textContent?.trim() || document.querySelector('.Post-Title, .PostIndex-title')?.textContent?.trim() || document.title;
+      const authorEl = root.querySelector('.AuthorInfo-name .UserLink-link, .AuthorInfo-head .UserLink-link, .UserLink-link, .PostIndex-authorName, .AuthorInfo-head');
       const name = authorEl?.textContent?.trim() || '知乎专栏作者';
-      const avatarEl = document.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar, .PostIndex-authorAvatar img');
-      const avatarUrl = avatarEl?.src;
-      const richContentEl = document.querySelector<HTMLElement>('.Post-RichText, .RichText, .Post-content');
+      const avatarEl = root.querySelector<HTMLImageElement>('.AuthorInfo-avatar, .Avatar, .PostIndex-authorAvatar img');
+      const avatarUrl = avatarEl?.getAttribute('src') || avatarEl?.src;
+      const richContentEl = root.querySelector<HTMLElement>('.Post-RichText, .RichText, .Post-content');
       if (!richContentEl && !selection) return null;
 
       let content = '';

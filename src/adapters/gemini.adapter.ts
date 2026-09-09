@@ -1,7 +1,7 @@
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData } from '@/types/post';
 import { cleanShareUrl, getHighResGoogleImageUrl } from '@/utils/url';
-import { sanitizeHtmlForCard, fetchImageAsDataUrl } from '@/utils/exporter';
+import { sanitizeHtmlForCard, fetchImageAsDataUrl, sanitizeDomForScreenshot } from '@/utils/exporter';
 
 export class GeminiAdapter extends BaseAdapter {
   readonly platform = 'gemini';
