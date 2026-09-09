@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { Globe, Sun, Moon, Laptop } from 'lucide-vue-next';
+import { Sun, Moon, Laptop } from 'lucide-vue-next';
+import QuickShareLogo from '@/components/icons/QuickShareLogo.vue';
 import { getUiThemeMode, setUiThemeMode, type UiThemeMode } from '@/utils/storage';
 
 const currentUiMode = ref<UiThemeMode>('system');
@@ -45,14 +46,19 @@ const handleSelectMode = async (mode: UiThemeMode) => {
   <div
     class="w-80 bg-white dark:bg-[#18181b] p-5 text-zinc-800 dark:text-zinc-100 font-sans shadow-xl select-none transition-colors"
   >
-    <!-- Header: 极简纯黑白 Raycast 风格 -->
+    <!-- Header: Apple / Raycast 风格 -->
     <div class="flex items-center justify-between mb-4 pb-3 border-b border-zinc-100 dark:border-white/10">
-      <div>
-        <div class="flex items-center gap-1.5">
-          <h1 class="text-sm font-bold text-zinc-900 dark:text-white leading-tight">QuickShare</h1>
-          <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono bg-zinc-100 dark:bg-white/10 text-zinc-500 dark:text-zinc-400 font-medium">v0.1.0</span>
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 flex items-center justify-center shrink-0 shadow-xs">
+          <QuickShareLogo :size="20" />
         </div>
-        <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">社交媒体卡片化快速分享</p>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-sm font-bold text-zinc-900 dark:text-white leading-tight">QuickShare</h1>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-md font-mono bg-zinc-100 dark:bg-white/10 text-zinc-500 dark:text-zinc-400 font-medium">v0.1.0</span>
+          </div>
+          <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">社交媒体卡片化快速分享</p>
+        </div>
       </div>
     </div>
 
@@ -142,8 +148,8 @@ const handleSelectMode = async (mode: UiThemeMode) => {
 
     <!-- Footer -->
     <div class="mt-4 pt-3 border-t border-zinc-100 dark:border-white/10 flex items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500">
-      <span class="flex items-center gap-1">
-        <Globe class="w-3.5 h-3.5" />
+      <span class="flex items-center gap-1.5 font-medium">
+        <QuickShareLogo :size="13" />
         QuickShare
       </span>
       <span>By Ryan Cui</span>

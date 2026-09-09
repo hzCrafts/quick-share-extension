@@ -47,21 +47,46 @@ export abstract class BaseAdapter {
   abstract extract(targetElement?: HTMLElement, selection?: ExcerptSelection): Promise<PostData | null>;
 
   /**
-   * 辅助方法：生成标准按钮的 HTML/DOM 结构
+   * 生成标准 2A Apple 蔚蓝流晶 SVG 图标 HTML
    */
-  protected createShareButton(onClick: (e: MouseEvent) => void, title = 'QuickShare'): HTMLElement {
+  protected getQuickShareSvgHtml(size = 18): string {
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; flex-shrink: 0;">
+        <defs>
+          <linearGradient id="qs-btn-front" x1="6" y1="2" x2="22" y2="18" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#0A84FF" />
+            <stop offset="100%" stop-color="#0066CC" />
+          </linearGradient>
+          <linearGradient id="qs-btn-back" x1="2" y1="5" x2="18" y2="21" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#5AC8FA" />
+            <stop offset="100%" stop-color="#0A84FF" />
+          </linearGradient>
+        </defs>
+        <rect x="2.5" y="6.5" width="13.5" height="14" rx="3.5" fill="url(#qs-btn-back)" fill-opacity="0.5" />
+        <rect x="6.5" y="3.5" width="15" height="15.5" rx="4" fill="url(#qs-btn-front)" />
+        <rect x="7" y="4" width="14" height="14.5" rx="3.5" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="0.8" />
+        <path
+          d="M10.5 15L17.5 8M17.5 8H12.5M17.5 8V13"
+          stroke="#FFFFFF"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    `;
+  }
+
+  /**
+   * 辅助方法：生成标准按钮的 HTML/DOM 结构（纯 SVG 注入，无冗余 Label）
+   */
+  protected createShareButton(onClick: (e: MouseEvent) => void, title = 'QuickShare 一键制图分享', size = 18): HTMLElement {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'quick-share-inject-btn';
     btn.title = title;
+    btn.setAttribute('aria-label', title);
     btn.setAttribute('data-quick-share', 'true');
-    btn.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-        <circle cx="9" cy="9" r="2"/>
-        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-      </svg>
-    `;
+    btn.innerHTML = this.getQuickShareSvgHtml(size);
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -70,3 +95,4 @@ export abstract class BaseAdapter {
     return btn;
   }
 }
+

@@ -15,5 +15,20 @@ export default defineConfig({
     description: '快速将 X/Twitter、知乎等社交媒体帖子转化为精美分享卡片图',
     permissions: ['storage', 'contextMenus', 'clipboardWrite'],
     host_permissions: ['*://*/*'],
+    icons: {
+      16: 'icon/16.png',
+      32: 'icon/32.png',
+      48: 'icon/48.png',
+      128: 'icon/128.png',
+    },
+    action: {
+      default_title: 'QuickShare - 社交媒体卡片分享',
+      default_icon: {
+        16: 'icon/16.png',
+        32: 'icon/32.png',
+        48: 'icon/48.png',
+        128: 'icon/128.png',
+      },
+    },
   },
 });

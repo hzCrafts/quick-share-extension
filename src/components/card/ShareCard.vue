@@ -263,7 +263,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
             crossorigin="anonymous"
             @error="(e: any) => e.target.style.display = 'none'"
           />
-          <span>{{ platformConfig.name }}</span>
+          <span style="flex-shrink: 0;">{{ platformConfig.name }}</span>
         </div>
       </div>
 
@@ -366,9 +366,9 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         </template>
       </div>
 
-      <!-- Media: X / 纯文本模式下的图片 (100% 宽度，高度自动撑高) -->
+      <!-- Media: X / 独立媒体图片 (100% 宽度，高度自动撑高) -->
       <div
-        v-if="!post.contentHtml && post.media && post.media.length > 0"
+        v-if="!post.isExcerpt && post.media && post.media.length > 0"
         class="qs-media-gallery"
       >
         <div

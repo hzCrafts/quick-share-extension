@@ -75,24 +75,25 @@ export class XAdapter extends BaseAdapter {
             })()
           );
         }
-      }, 'QuickShare');
+      }, 'QuickShare 一键制图分享', 22);
 
       btn.style.background = 'transparent';
       btn.style.border = 'none';
       btn.style.cursor = 'pointer';
       btn.style.display = 'flex';
       btn.style.alignItems = 'center';
-      btn.style.padding = '6px';
+      btn.style.justifyContent = 'center';
+      btn.style.padding = '4px';
       btn.style.borderRadius = '9999px';
       btn.style.color = 'inherit';
-      btn.style.transition = 'background-color 0.2s, color 0.2s';
+      btn.style.transition = 'background-color 0.2s, transform 0.15s';
       btn.onmouseenter = () => {
-        btn.style.backgroundColor = 'rgba(29, 155, 240, 0.1)';
-        btn.style.color = 'rgb(29, 155, 240)';
+        btn.style.backgroundColor = 'rgba(29, 155, 240, 0.12)';
+        btn.style.transform = 'scale(1.08)';
       };
       btn.onmouseleave = () => {
         btn.style.backgroundColor = 'transparent';
-        btn.style.color = 'inherit';
+        btn.style.transform = 'scale(1)';
       };
 
       wrapper.appendChild(btn);

@@ -78,7 +78,7 @@ export class ZhihuAdapter extends BaseAdapter {
       wrapper.className = 'quick-share-zhihu-wrapper';
       wrapper.style.display = 'inline-flex';
       wrapper.style.alignItems = 'center';
-      wrapper.style.marginLeft = '12px';
+      wrapper.style.marginLeft = '8px';
 
       const btn = this.createShareButton(() => {
         if (this.onShareCallback) {
@@ -89,26 +89,25 @@ export class ZhihuAdapter extends BaseAdapter {
             })()
           );
         }
-      }, 'QuickShare');
+      }, 'QuickShare 一键制图分享', 20);
 
       btn.style.display = 'inline-flex';
       btn.style.alignItems = 'center';
-      btn.style.gap = '4px';
+      btn.style.justifyContent = 'center';
       btn.style.background = 'transparent';
       btn.style.border = 'none';
       btn.style.cursor = 'pointer';
-      btn.style.color = '#8590a6';
-      btn.style.fontSize = '14px';
-      btn.style.padding = '4px 8px';
-      btn.style.borderRadius = '4px';
-      btn.style.transition = 'color 0.2s';
-      btn.innerHTML += '<span style="font-size: 13px; font-weight: 500;">QuickShare</span>';
+      btn.style.padding = '4px';
+      btn.style.borderRadius = '6px';
+      btn.style.transition = 'transform 0.15s, background-color 0.2s';
 
       btn.onmouseenter = () => {
-        btn.style.color = '#0066ff';
+        btn.style.backgroundColor = 'rgba(10, 132, 255, 0.08)';
+        btn.style.transform = 'scale(1.08)';
       };
       btn.onmouseleave = () => {
-        btn.style.color = '#8590a6';
+        btn.style.backgroundColor = 'transparent';
+        btn.style.transform = 'scale(1)';
       };
 
       wrapper.appendChild(btn);
@@ -120,24 +119,34 @@ export class ZhihuAdapter extends BaseAdapter {
     if (articleHeader && !articleHeader.querySelector('.quick-share-zhihu-wrapper')) {
       const wrapper = document.createElement('div');
       wrapper.className = 'quick-share-zhihu-wrapper';
-      wrapper.style.margin = '12px 0';
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.margin = '8px 0';
 
       const btn = this.createShareButton(() => {
         if (this.onShareCallback) {
           this.onShareCallback(this.extractArticle());
         }
-      }, 'QuickShare');
+      }, 'QuickShare 一键制图分享', 20);
 
       btn.style.display = 'inline-flex';
       btn.style.alignItems = 'center';
-      btn.style.gap = '6px';
-      btn.style.background = '#f6f6f6';
-      btn.style.border = '1px solid #ebebeb';
-      btn.style.borderRadius = '6px';
-      btn.style.padding = '6px 12px';
+      btn.style.justifyContent = 'center';
+      btn.style.background = 'transparent';
+      btn.style.border = '1px solid rgba(0, 0, 0, 0.08)';
+      btn.style.borderRadius = '8px';
+      btn.style.padding = '6px';
       btn.style.cursor = 'pointer';
-      btn.style.color = '#121212';
-      btn.innerHTML += '<span style="font-size: 13px; font-weight: 500;">QuickShare</span>';
+      btn.style.transition = 'transform 0.15s, background-color 0.2s';
+
+      btn.onmouseenter = () => {
+        btn.style.backgroundColor = 'rgba(10, 132, 255, 0.08)';
+        btn.style.transform = 'scale(1.08)';
+      };
+      btn.onmouseleave = () => {
+        btn.style.backgroundColor = 'transparent';
+        btn.style.transform = 'scale(1)';
+      };
 
       wrapper.appendChild(btn);
       articleHeader.prepend(wrapper);
