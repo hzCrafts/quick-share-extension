@@ -230,8 +230,9 @@ export class ZhihuAdapter extends BaseAdapter {
         excerptBeforeHtml = selection.beforeHtml ? sanitizeHtmlForCard(selection.beforeHtml) : undefined;
         excerptAfterHtml = selection.afterHtml ? sanitizeHtmlForCard(selection.afterHtml) : undefined;
       } else if (richContentEl) {
-        contentHtml = this.cleanZhihuHtml(richContentEl);
-        content = richContentEl.textContent?.trim() || '';
+        const cleaned = this.cleanZhihuContent(richContentEl);
+        contentHtml = cleaned.html;
+        content = cleaned.text;
       }
 
       // 提取回答专属 URL 并清洗
@@ -332,8 +333,9 @@ export class ZhihuAdapter extends BaseAdapter {
         excerptBeforeHtml = selection.beforeHtml ? sanitizeHtmlForCard(selection.beforeHtml) : undefined;
         excerptAfterHtml = selection.afterHtml ? sanitizeHtmlForCard(selection.afterHtml) : undefined;
       } else if (richContentEl) {
-        contentHtml = this.cleanZhihuHtml(richContentEl);
-        content = richContentEl.textContent?.trim() || '';
+        const cleaned = this.cleanZhihuContent(richContentEl);
+        contentHtml = cleaned.html;
+        content = cleaned.text;
       }
 
       const postUrl = cleanShareUrl(window.location.href);
@@ -360,7 +362,7 @@ export class ZhihuAdapter extends BaseAdapter {
     }
   }
 
-  private cleanZhihuHtml(rawEl: HTMLElement): string {
+  private cleanZhihuContent(rawEl: HTMLElement): { html: string; text: string } {
     const clone = rawEl.cloneNode(true) as HTMLElement;
 
     const removeSelectors = [
@@ -371,6 +373,23 @@ export class ZhihuAdapter extends BaseAdapter {
       'button',
       'noscript',
       '.css-1g4ba74',
+      // 商业推广、付费咨询、MCN、带货与卡片广告容器
+      '.RichText-ADLinkCardContainer',
+      '.FeeConsultCard',
+      '.RichText-MCNLinkCardContainer',
+      '.MCNLinkCard',
+      '.RichText-LinkCardContainer',
+      '.GoodsConsultCard',
+      '.PaidConsultCard',
+      '.KfeCollection-PcLinkCard-container',
+      '.ZhihuPaidCard',
+      '.Reward',
+      '[data-ad-type]',
+      '[class*="ADLinkCard"]',
+      '[class*="FeeConsultCard"]',
+      '[class*="MCNLinkCard"]',
+      '[class*="GoodsConsultCard"]',
+      '[class*="PaidConsultCard"]',
     ];
     removeSelectors.forEach((sel) => {
       clone.querySelectorAll(sel).forEach((el) => el.remove());
@@ -406,6 +425,9 @@ export class ZhihuAdapter extends BaseAdapter {
       a.replaceWith(document.createTextNode(text));
     });
 
-    return sanitizeHtmlForCard(clone.innerHTML);
+    return {
+      html: sanitizeHtmlForCard(clone.innerHTML),
+      text: clone.textContent?.trim() || '',
+    };
   }
 }
