@@ -218,14 +218,6 @@ export class XAdapter extends BaseAdapter {
           contentHtml = sanitizeHtmlForCard(clone.innerHTML);
         }
 
-        // 检查 video
-        const hasVideo = tweet.querySelector('video, div[data-testid="videoComponent"], div[data-testid="videoPlayer"]');
-        if (hasVideo) {
-          const videoEl = tweet.querySelector<HTMLVideoElement>('video');
-          const videoSrc = videoEl?.src && !videoEl.src.startsWith('blob:') ? videoEl.src : cleanUrl;
-          content += `\n\n[视频]: ${videoSrc}`;
-        }
-
         // 检查 Link Card / 网页链接卡片
         const cardEl = tweet.querySelector<HTMLElement>(
           'div[data-testid="card.wrapper"], [data-testid="card.layoutLarge.detail"], [data-testid="card.layoutSmall.detail"], div[data-testid="linkCard"], a[target="_blank"][role="link"]'
@@ -261,19 +253,23 @@ export class XAdapter extends BaseAdapter {
         }
       }
 
-      // 2. 提取当前推文自身的独立配图（严格排除 Quote Tweet 原帖内的图片）
+      // 2. 提取当前推文自身的独立配图与视频（严格排除 Quote Tweet 原帖内的图片/视频）
       let mediaList: PostMedia[] | undefined = undefined;
       if (!selection) {
         const quoteEl = tweet.querySelector<HTMLElement>(
           'div[role="link"], div[data-testid="quoteTweet"], [role="link"][tabindex="0"]'
         );
+        const list: PostMedia[] = [];
+
+        // (1) 提取推文配图
         const photoEls = tweet.querySelectorAll<HTMLImageElement>(
           'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"], img[src*="pbs.twimg.com/card_img/"], div[data-testid="card.wrapper"] img, [data-testid="card.layoutLarge.detail"] img'
         );
-        const list: PostMedia[] = [];
 
         photoEls.forEach((img) => {
           if (quoteEl && quoteEl.contains(img)) return;
+          // 排除视频容器内的占位元素
+          if (img.closest('div[data-testid="videoComponent"], div[data-testid="videoPlayer"]')) return;
           if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
             let highResUrl = img.src;
             if (highResUrl.includes('name=')) {
@@ -287,6 +283,25 @@ export class XAdapter extends BaseAdapter {
             }
           }
         });
+
+        // (2) 提取主推文视频首屏海报（包含时长）
+        const mainVideoContainers = tweet.querySelectorAll<HTMLElement>(
+          'div[data-testid="videoComponent"], div[data-testid="videoPlayer"], video'
+        );
+        for (const videoContainer of mainVideoContainers) {
+          if (quoteEl && quoteEl.contains(videoContainer)) continue;
+          const videoInfo = this.extractVideoInfo(videoContainer.closest('div[data-testid="tweetPhoto"], div[data-testid="videoPlayer"], div[data-testid="placementTracking"]') || videoContainer);
+          if (videoInfo && !list.some((m) => m.url === videoInfo.posterUrl)) {
+            list.push({
+              type: 'video',
+              url: videoInfo.posterUrl,
+              posterUrl: videoInfo.posterUrl,
+              duration: videoInfo.duration,
+            });
+            break;
+          }
+        }
+
         if (list.length > 0) mediaList = list;
       }
 
@@ -410,11 +425,7 @@ export class XAdapter extends BaseAdapter {
     });
 
     // 检查原帖视频
-    let quoteVideoPoster = '';
-    const videoEl = quoteEl.querySelector<HTMLVideoElement>('video');
-    if (videoEl?.poster) {
-      quoteVideoPoster = videoEl.poster;
-    }
+    const quoteVideoInfo = this.extractVideoInfo(quoteEl);
 
     // 5. 组装嵌入式 Quote Tweet DOM
     let html = '<div class="quick-share-quote-tweet">';
@@ -446,10 +457,16 @@ export class XAdapter extends BaseAdapter {
         html += `<img class="quick-share-quote-img" src="${src}" alt="media" crossorigin="anonymous" />`;
       });
       html += '</div>';
-    } else if (quoteVideoPoster) {
+    } else if (quoteVideoInfo) {
       html += `<div class="quick-share-quote-media-grid grid-cols-1">`;
-      html += `<img class="quick-share-quote-img" src="${quoteVideoPoster}" alt="video thumbnail" crossorigin="anonymous" />`;
-      html += '</div>';
+      html += `<div class="quick-share-video-container">`;
+      html += `<img class="quick-share-quote-img" src="${quoteVideoInfo.posterUrl}" alt="video thumbnail" crossorigin="anonymous" />`;
+      html += `<div class="qs-video-play-badge"><svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z"/></svg></div>`;
+      if (quoteVideoInfo.duration) {
+        html += `<div class="qs-video-duration-badge">${quoteVideoInfo.duration}</div>`;
+      }
+      html += `</div>`;
+      html += `</div>`;
     }
 
     html += '</div>';
@@ -460,6 +477,71 @@ export class XAdapter extends BaseAdapter {
       html,
       text,
       element: quoteEl,
+    };
+  }
+
+  /**
+   * 提取视频海报 (Poster) 及视频时长
+   */
+  private extractVideoInfo(container: HTMLElement): { posterUrl: string; duration?: string } | null {
+    let posterUrl = '';
+    let duration: string | undefined = undefined;
+
+    // 1. 从 video 标签提取 poster 属性
+    const videoEl = container.tagName.toLowerCase() === 'video' ? (container as HTMLVideoElement) : container.querySelector<HTMLVideoElement>('video');
+    if (videoEl) {
+      posterUrl = videoEl.getAttribute('poster') || videoEl.poster || '';
+    }
+
+    // 2. 若无 poster，尝试从推文背景图或视频缩略图 img 标签提取
+    if (!posterUrl) {
+      const thumbImg = container.querySelector<HTMLImageElement>(
+        'img[src*="amplify_video_thumb"], img[src*="ext_tw_video_thumb"], img[src*="video_thumb"], img[src*="pbs.twimg.com/media/"]'
+      );
+      if (thumbImg) {
+        posterUrl = thumbImg.getAttribute('src') || thumbImg.src || '';
+      }
+    }
+
+    // 3. 若仍未找到，检查 style 中是否有 background-image
+    if (!posterUrl) {
+      const bgEls = container.querySelectorAll<HTMLElement>('[style*="background-image"]');
+      for (const el of bgEls) {
+        const bg = el.style.backgroundImage || '';
+        const match = bg.match(/url\(["']?(https:\/\/[^"']+)["']?\)/);
+        if (match && match[1] && (match[1].includes('video_thumb') || match[1].includes('amplify_video_thumb') || match[1].includes('twimg.com'))) {
+          posterUrl = match[1];
+          break;
+        }
+      }
+    }
+
+    if (!posterUrl) return null;
+
+    // 4. 提取视频时长文本 (例如 3:40, 0:15 等格式)
+    const durationRegex = /^\d{1,2}:\d{2}(:\d{2})?$/;
+    const textEls = container.querySelectorAll<HTMLElement>('span, div[role="progressbar"] + span, [data-testid="app-bar-duration"]');
+    for (const el of textEls) {
+      const text = el.textContent?.trim() || '';
+      if (durationRegex.test(text)) {
+        duration = text;
+        break;
+      }
+    }
+    if (!duration) {
+      const allSpans = container.querySelectorAll('span');
+      for (const s of allSpans) {
+        const t = s.textContent?.trim() || '';
+        if (durationRegex.test(t)) {
+          duration = t;
+          break;
+        }
+      }
+    }
+
+    return {
+      posterUrl,
+      duration,
     };
   }
 

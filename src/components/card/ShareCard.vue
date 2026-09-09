@@ -366,7 +366,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         </template>
       </div>
 
-      <!-- Media: X / 独立媒体图片 (100% 宽度，高度自动撑高) -->
+      <!-- Media: X / 独立媒体图片/视频 (100% 宽度，高度自动撑高) -->
       <div
         v-if="!post.isExcerpt && post.media && post.media.length > 0"
         class="qs-media-gallery"
@@ -376,7 +376,30 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           :key="idx"
           class="qs-media-item"
         >
+          <div
+            v-if="item.type === 'video'"
+            class="quick-share-video-container"
+          >
+            <img
+              :src="item.posterUrl || item.url"
+              alt="video thumbnail"
+              class="qs-media-img"
+              crossorigin="anonymous"
+            />
+            <div class="qs-video-play-badge">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-0.5">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+            <div
+              v-if="item.duration"
+              class="qs-video-duration-badge"
+            >
+              {{ item.duration }}
+            </div>
+          </div>
           <img
+            v-else
             :src="item.url"
             alt="media"
             class="qs-media-img"
@@ -1088,6 +1111,93 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   border-radius: 12px;
   display: block;
   margin: 0 auto;
+}
+
+/* 视频容器与播放微标 / 时长胶囊 */
+.quick-share-video-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+:deep(.quick-share-video-container) {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.qs-video-play-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+  height: 52px;
+  background-color: rgba(15, 20, 25, 0.75);
+  backdrop-filter: blur(6px);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+:deep(.qs-video-play-badge) {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  background-color: rgba(15, 20, 25, 0.75);
+  backdrop-filter: blur(4px);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.qs-video-duration-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(15, 20, 25, 0.8);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+:deep(.qs-video-duration-badge) {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background-color: rgba(15, 20, 25, 0.8);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 /* Footer */

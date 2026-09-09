@@ -10,6 +10,8 @@ export interface PostAuthor {
 export interface PostMedia {
   type: 'image' | 'video';
   url: string;
+  duration?: string;
+  posterUrl?: string;
 }
 
 export interface PostData {
