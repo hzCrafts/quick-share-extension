@@ -248,20 +248,32 @@ export class XAdapter extends BaseAdapter {
             contentHtml += `<p><a href="${cardUrl}">${cardUrl}</a></p>`;
           }
         }
+
+        // 检查是否存在转发/引用原帖 (Quote Tweet)
+        const quoteData = this.extractQuoteTweet(tweet);
+        if (quoteData) {
+          content += quoteData.text;
+          if (contentHtml) {
+            contentHtml += quoteData.html;
+          } else {
+            contentHtml = quoteData.html;
+          }
+        }
       }
 
-      // 2. 提取媒体图片（包含推文配图与 Link Card 预览大图）
+      // 2. 提取当前推文自身的独立配图（严格排除 Quote Tweet 原帖内的图片）
       let mediaList: PostMedia[] | undefined = undefined;
       if (!selection) {
-        // 仅排除引用推文（Quote Tweet）内的配图，不排除当前推文的 Link Card
-        const quoteContainer = tweet.querySelector('div[data-testid="quoteTweet"]');
+        const quoteEl = tweet.querySelector<HTMLElement>(
+          'div[role="link"], div[data-testid="quoteTweet"], [role="link"][tabindex="0"]'
+        );
         const photoEls = tweet.querySelectorAll<HTMLImageElement>(
           'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"], img[src*="pbs.twimg.com/card_img/"], div[data-testid="card.wrapper"] img, [data-testid="card.layoutLarge.detail"] img'
         );
         const list: PostMedia[] = [];
 
         photoEls.forEach((img) => {
-          if (quoteContainer && quoteContainer.contains(img)) return;
+          if (quoteEl && quoteEl.contains(img)) return;
           if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
             let highResUrl = img.src;
             if (highResUrl.includes('name=')) {
@@ -298,6 +310,157 @@ export class XAdapter extends BaseAdapter {
       console.error('[QuickShare] Failed to extract tweet data:', err);
       return null;
     }
+  }
+
+  /**
+   * 提取转发/引用的原帖 (Quote Tweet) 结构
+   */
+  private extractQuoteTweet(tweet: HTMLElement): { html: string; text: string; element: HTMLElement } | null {
+    // 寻找推文容器内部的引用推文块 (role="link" 且内部含有 User-Name 或 tweetText，或者是旧版 data-testid="quoteTweet")
+    const candidates = tweet.querySelectorAll<HTMLElement>(
+      'div[role="link"], div[data-testid="quoteTweet"], [role="link"][tabindex="0"]'
+    );
+    let quoteEl: HTMLElement | null = null;
+    for (const el of candidates) {
+      if (el === tweet) continue;
+      // 排除操作栏内的链接、用户头像链接、时间链接等非 Quote 卡片
+      if (el.closest('div[role="group"]') || el.closest('div[data-testid="User-Name"]')) continue;
+      if (el.querySelector('[data-testid="User-Name"], [data-testid="Tweet-User-Avatar"], [data-testid="tweetText"]')) {
+        quoteEl = el;
+        break;
+      }
+    }
+    if (!quoteEl) return null;
+
+    // 1. 提取原作者头像
+    const avatarEl = quoteEl.querySelector<HTMLImageElement>(
+      'div[data-testid="Tweet-User-Avatar"] img, img[src*="profile_images"]'
+    );
+    const avatarUrl = avatarEl?.getAttribute('src') || avatarEl?.src || '';
+
+    // 2. 提取原作者名称、Handle、时间
+    let quoteAuthorName = '原帖作者';
+    let quoteHandle = '';
+    let quoteTime = '';
+    const userNameEl = quoteEl.querySelector('[data-testid="User-Name"]');
+    if (userNameEl) {
+      const timeEl = userNameEl.querySelector('time');
+      if (timeEl) {
+        quoteTime = `· ${timeEl.textContent?.trim() || ''}`;
+      }
+      const links = userNameEl.querySelectorAll('a');
+      if (links.length > 0) {
+        quoteAuthorName = links[0]?.textContent?.trim() || '原帖作者';
+        const h = links[1]?.textContent?.trim() || links[0]?.getAttribute('href')?.replace('/', '@') || '';
+        quoteHandle = h.startsWith('@') ? h : `@${h}`;
+      } else {
+        const fullText = userNameEl.textContent || '';
+        const parts = fullText.split('@');
+        quoteAuthorName = parts[0]?.trim() || '原帖作者';
+        if (parts[1]) {
+          quoteHandle = '@' + parts[1].split('·')[0]?.trim();
+        }
+      }
+    }
+
+    // 3. 提取原帖正文
+    let quoteTextHtml = '';
+    let quoteRawText = '';
+    const tweetTextEl = quoteEl.querySelector<HTMLElement>('div[data-testid="tweetText"]');
+    if (tweetTextEl) {
+      const clone = tweetTextEl.cloneNode(true) as HTMLElement;
+      // 转换链接
+      clone.querySelectorAll<HTMLAnchorElement>('a').forEach((a) => {
+        const href = a.getAttribute('href') || '';
+        const text = a.textContent?.trim() || '';
+        if (text.startsWith('@') || text.startsWith('#')) return;
+        let actualUrl = a.title || href;
+        if (actualUrl.startsWith('/')) {
+          actualUrl = `https://x.com${actualUrl}`;
+        }
+        const span = document.createElement('span');
+        span.textContent = ` ${actualUrl} `;
+        a.replaceWith(span);
+      });
+      this.convertNewlinesToBr(clone);
+      clone.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+        if (img.src && (img.src.includes('emoji') || img.alt)) {
+          img.className = 'inline-block w-4 h-4 align-text-bottom mx-0.5';
+        }
+      });
+      quoteTextHtml = clone.innerHTML;
+      quoteRawText = clone.textContent?.trim() || '';
+    }
+
+    // 4. 提取原帖配图 (最多支持 4 张网格)
+    const quoteImgs: string[] = [];
+    const photoEls = quoteEl.querySelectorAll<HTMLImageElement>(
+      'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"]'
+    );
+    photoEls.forEach((img) => {
+      if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
+        let highResUrl = img.src;
+        if (highResUrl.includes('name=')) {
+          highResUrl = highResUrl.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
+        }
+        if (!quoteImgs.includes(highResUrl)) {
+          quoteImgs.push(highResUrl);
+        }
+      }
+    });
+
+    // 检查原帖视频
+    let quoteVideoPoster = '';
+    const videoEl = quoteEl.querySelector<HTMLVideoElement>('video');
+    if (videoEl?.poster) {
+      quoteVideoPoster = videoEl.poster;
+    }
+
+    // 5. 组装嵌入式 Quote Tweet DOM
+    let html = '<div class="quick-share-quote-tweet">';
+    
+    // Header
+    html += '<div class="quick-share-quote-header">';
+    if (avatarUrl) {
+      html += `<img class="quick-share-quote-avatar" src="${avatarUrl}" alt="avatar" crossorigin="anonymous" />`;
+    }
+    html += `<span class="quick-share-quote-name">${quoteAuthorName}</span>`;
+    if (quoteHandle) {
+      html += `<span class="quick-share-quote-handle">${quoteHandle}</span>`;
+    }
+    if (quoteTime) {
+      html += `<span class="quick-share-quote-time">${quoteTime}</span>`;
+    }
+    html += '</div>';
+
+    // Body
+    if (quoteTextHtml) {
+      html += `<div class="quick-share-quote-text">${quoteTextHtml}</div>`;
+    }
+
+    // Media
+    if (quoteImgs.length > 0) {
+      const gridClass = quoteImgs.length === 1 ? 'grid-cols-1' : 'grid-cols-2';
+      html += `<div class="quick-share-quote-media-grid ${gridClass}">`;
+      quoteImgs.forEach((src) => {
+        html += `<img class="quick-share-quote-img" src="${src}" alt="media" crossorigin="anonymous" />`;
+      });
+      html += '</div>';
+    } else if (quoteVideoPoster) {
+      html += `<div class="quick-share-quote-media-grid grid-cols-1">`;
+      html += `<img class="quick-share-quote-img" src="${quoteVideoPoster}" alt="video thumbnail" crossorigin="anonymous" />`;
+      html += '</div>';
+    }
+
+    html += '</div>';
+
+    const text = `\n\n[原帖 @${quoteHandle} ${quoteAuthorName}]: ${quoteRawText}`;
+
+    return {
+      html,
+      text,
+      element: quoteEl,
+    };
   }
 
   /**

@@ -766,6 +766,97 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin-bottom: 0;
 }
 
+/* X (Twitter) 转发原帖引用卡片 (Quote Tweet Box) */
+:deep(.quick-share-quote-tweet) {
+  margin-top: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--qs-table-border, rgba(255, 255, 255, 0.12));
+  background: var(--qs-prompt-bg, rgba(255, 255, 255, 0.04));
+  padding: 12px 14px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+:deep(.quick-share-quote-header) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.quick-share-quote-avatar) {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+:deep(.quick-share-quote-name) {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--qs-text-primary);
+  flex-shrink: 0;
+}
+
+:deep(.quick-share-quote-handle) {
+  font-size: 12px;
+  color: var(--qs-text-secondary);
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(.quick-share-quote-time) {
+  font-size: 12px;
+  color: var(--qs-text-secondary);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+:deep(.quick-share-quote-text) {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--qs-text-primary);
+  word-break: break-word;
+  margin-top: 4px;
+}
+
+:deep(.quick-share-quote-text p) {
+  margin: 0;
+}
+
+:deep(.quick-share-quote-media-grid) {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+:deep(.quick-share-quote-media-grid.grid-cols-1) {
+  grid-template-columns: 1fr;
+}
+
+:deep(.quick-share-quote-media-grid.grid-cols-2) {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+:deep(.quick-share-quote-img) {
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
 :deep(.quick-share-rich-body .quick-share-rich-img) {
   display: block;
   width: 100%;
