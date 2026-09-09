@@ -145,6 +145,33 @@ export default defineContentScript({
       let afterHtml: string | undefined = undefined;
       let selectedHtml = '';
 
+      // 递归修剪所有无实际文本内容与有效媒体的残缺/空容器（彻底消除空 ul/ol/li 产生的多余孤立圆点）
+      const pruneEmptyNodes = (container: HTMLElement) => {
+        // 1. 移除无关干扰按钮与辅助无障碍空节点
+        container.querySelectorAll('button, noscript, .ContentItem-more, .visually-hidden, [aria-hidden="true"]').forEach((el) => {
+          if (!el.textContent?.trim() && !el.querySelector('img, svg, math, canvas')) {
+            el.remove();
+          }
+        });
+
+        // 2. 自底向上循环修剪纯空白无媒体的空元素（包括空 li, 空 ul, 空 ol, 空 p, 空 div 等）
+        let changed = true;
+        let iterations = 0;
+        while (changed && iterations < 10) {
+          changed = false;
+          iterations++;
+          const all = Array.from(container.querySelectorAll('*'));
+          for (const el of all) {
+            const hasMedia = el.querySelector('img, svg, canvas, video, iframe, math');
+            const text = el.textContent?.trim();
+            if (!text && !hasMedia) {
+              el.remove();
+              changed = true;
+            }
+          }
+        }
+      };
+
       if (isPartialInSingleBlock) {
         // 场景 A：单段落内部局部划选 -> 段内水平渐显 + 选区高亮 + 段内水平渐隐（无需外部垂直段落）
         try {
@@ -179,12 +206,14 @@ export default defineContentScript({
             const beforeFrag = rangeBefore.cloneContents();
             const temp = document.createElement('div');
             temp.appendChild(beforeFrag);
-            temp.querySelectorAll('button, noscript, .ContentItem-more').forEach((el) => el.remove());
+            pruneEmptyNodes(temp);
+
             const children = Array.from(temp.children);
             if (children.length > 0) {
               const sliceChildren = children.slice(-2);
               const container = document.createElement('div');
               sliceChildren.forEach((c) => container.appendChild(c));
+              pruneEmptyNodes(container);
               if (container.textContent?.trim()) {
                 beforeHtml = container.innerHTML.trim();
               }
@@ -205,12 +234,14 @@ export default defineContentScript({
             const afterFrag = rangeAfter.cloneContents();
             const temp = document.createElement('div');
             temp.appendChild(afterFrag);
-            temp.querySelectorAll('button, noscript, .ContentItem-more').forEach((el) => el.remove());
+            pruneEmptyNodes(temp);
+
             const children = Array.from(temp.children);
             if (children.length > 0) {
               const sliceChildren = children.slice(0, 2);
               const container = document.createElement('div');
               sliceChildren.forEach((c) => container.appendChild(c));
+              pruneEmptyNodes(container);
               if (container.textContent?.trim()) {
                 afterHtml = container.innerHTML.trim();
               }
@@ -222,14 +253,25 @@ export default defineContentScript({
           console.warn('[QuickShare] Failed to extract bottom after block:', e);
         }
 
-        // 3. 构建整段 / 跨段 selectedHtml
+        // 3. 构建整段 / 跨段 selectedHtml（若选区均为 LI 则自愈包裹父级 ul/ol）
         try {
           if (startBlock === endBlock && startBlock !== contentRoot) {
             selectedHtml = startBlock.outerHTML;
           } else {
             const selDiv = document.createElement('div');
             selDiv.appendChild(range.cloneContents());
-            selectedHtml = selDiv.innerHTML;
+
+            const startIsLi = startBlock.tagName.toLowerCase() === 'li';
+            const endIsLi = endBlock.tagName.toLowerCase() === 'li';
+            const listParent = (startBlock.closest('ul, ol') || endBlock.closest('ul, ol')) as HTMLElement | null;
+
+            if (startIsLi && endIsLi && listParent) {
+              const listTag = listParent.tagName.toLowerCase();
+              const listClass = listParent.className ? ` class="${listParent.className}"` : '';
+              selectedHtml = `<${listTag}${listClass}>${selDiv.innerHTML}</${listTag}>`;
+            } else {
+              selectedHtml = selDiv.innerHTML;
+            }
           }
         } catch (e) {
           const selDiv = document.createElement('div');

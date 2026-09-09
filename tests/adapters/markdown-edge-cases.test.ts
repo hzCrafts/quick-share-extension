@@ -187,4 +187,37 @@ describe('类 Markdown 与 DOM 结构保真度 Edge Cases 测试', () => {
       expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/pic.jpg');
     });
   });
+
+  describe('7. 列表划词金句与空节点修剪保真度', () => {
+    it('列表项划选切分时，自动过滤空 <li>/<ul> 标签并保留完整列表拓扑', () => {
+      // 模拟 Range cloneContents 产生的带有前缀空 ul 和包含选中 li 的结构
+      const rawExcerptBefore = '<ul class="list-disc"></ul>';
+      const rawExcerptSelected = '<ul class="list-disc"><li>选中列表项 A</li><li>选中列表项 B</li></ul>';
+      const rawExcerptAfter = '<ul class="list-disc"><li>后续未选列表项 C</li></ul>';
+
+      const sanitizedBefore = sanitizeHtmlForCard(rawExcerptBefore);
+      const sanitizedSelected = sanitizeHtmlForCard(rawExcerptSelected);
+      const sanitizedAfter = sanitizeHtmlForCard(rawExcerptAfter);
+
+      const beforeDiv = document.createElement('div');
+      beforeDiv.innerHTML = sanitizedBefore;
+      const selectedDiv = document.createElement('div');
+      selectedDiv.innerHTML = sanitizedSelected;
+      const afterDiv = document.createElement('div');
+      afterDiv.innerHTML = sanitizedAfter;
+
+      // before 中的纯空 ul 不应包含任何 li
+      expect(beforeDiv.querySelectorAll('li').length).toBe(0);
+
+      // selected 具有合法的 ul > li 结构
+      expect(selectedDiv.querySelector('ul')).not.toBeNull();
+      expect(selectedDiv.querySelectorAll('li').length).toBe(2);
+      expect(selectedDiv.textContent).toContain('选中列表项 A');
+      expect(selectedDiv.textContent).toContain('选中列表项 B');
+
+      // after 具有合法的下文列表
+      expect(afterDiv.querySelectorAll('li').length).toBe(1);
+      expect(afterDiv.textContent).toContain('后续未选列表项 C');
+    });
+  });
 });

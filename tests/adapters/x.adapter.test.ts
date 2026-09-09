@@ -54,5 +54,37 @@ describe('XAdapter 结构解析与数据提取测试', () => {
       expect(postData?.media?.[0].url).toContain('name=large');
       expect(postData?.media?.[1].url).toContain('name=large');
     });
+
+    it('正确将 X 原生文本节点中的 \\n 转换为 <br /> 标签，避免排版合并坍缩', async () => {
+      const rawTweetHtml = `
+        <article data-testid="tweet">
+          <div data-testid="User-Name">
+            <a href="/author"><span>Author</span></a>
+          </div>
+          <div data-testid="tweetText">
+            <span>第一行观点
+第二行分析
+
+第三行结论</span>
+          </div>
+          <a href="/author/status/2097150432996892889">
+            <time datetime="2026-09-09T00:00:00.000Z">Sep 9</time>
+          </a>
+        </article>
+      `;
+      document.body.innerHTML = rawTweetHtml;
+      const tweetEl = document.querySelector<HTMLElement>('article[data-testid="tweet"]')!;
+
+      const postData = await adapter.extract(tweetEl);
+      expect(postData).not.toBeNull();
+
+      // 验证 contentHtml 内存在 3 个 <br> 换行
+      const temp = document.createElement('div');
+      temp.innerHTML = postData!.contentHtml!;
+
+      const brTags = temp.querySelectorAll('br');
+      expect(brTags.length).toBe(3);
+      expect(postData?.contentHtml).toContain('第一行观点<br>第二行分析<br><br>第三行结论');
+    });
   });
 });

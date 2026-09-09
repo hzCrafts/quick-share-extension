@@ -168,9 +168,23 @@ export class XAdapter extends BaseAdapter {
       if (selection) {
         // 划选引述模式：保留富文本结构并提取前后上下文
         content = selection.selectedText.trim();
-        contentHtml = sanitizeHtmlForCard(selection.selectedHtml || selection.selectedText.trim());
-        excerptBeforeHtml = selection.beforeHtml ? sanitizeHtmlForCard(selection.beforeHtml) : undefined;
-        excerptAfterHtml = selection.afterHtml ? sanitizeHtmlForCard(selection.afterHtml) : undefined;
+        const temp = document.createElement('div');
+        temp.innerHTML = selection.selectedHtml || selection.selectedText.trim();
+        this.convertNewlinesToBr(temp);
+        contentHtml = sanitizeHtmlForCard(temp.innerHTML);
+
+        if (selection.beforeHtml) {
+          const beforeTemp = document.createElement('div');
+          beforeTemp.innerHTML = selection.beforeHtml;
+          this.convertNewlinesToBr(beforeTemp);
+          excerptBeforeHtml = sanitizeHtmlForCard(beforeTemp.innerHTML);
+        }
+        if (selection.afterHtml) {
+          const afterTemp = document.createElement('div');
+          afterTemp.innerHTML = selection.afterHtml;
+          this.convertNewlinesToBr(afterTemp);
+          excerptAfterHtml = sanitizeHtmlForCard(afterTemp.innerHTML);
+        }
       } else {
         const tweetTextEl = tweet.querySelector<HTMLElement>('div[data-testid="tweetText"]');
         if (tweetTextEl) {
@@ -188,6 +202,17 @@ export class XAdapter extends BaseAdapter {
             span.textContent = ` ${actualUrl} `;
             a.replaceWith(span);
           });
+
+          // 将 X 原生文本节点中的 \n 换行符显式转换为 <br />，确保排版换行 100% 保真
+          this.convertNewlinesToBr(clone);
+
+          // 处理推文内嵌表情 emoji <img> 保持行内尺寸与对齐
+          clone.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+            if (img.src && (img.src.includes('emoji') || img.alt)) {
+              img.className = 'inline-block w-4 h-4 align-text-bottom mx-0.5';
+            }
+          });
+
           content = clone.textContent?.trim() || '';
           contentHtml = sanitizeHtmlForCard(clone.innerHTML);
         }
@@ -272,5 +297,40 @@ export class XAdapter extends BaseAdapter {
       console.error('[QuickShare] Failed to extract tweet data:', err);
       return null;
     }
+  }
+
+  /**
+   * 将 X (Twitter) 原生文本节点中的 \n 换行符显式转换为 <br />，确保排版换行 100% 保真
+   */
+  private convertNewlinesToBr(root: HTMLElement): void {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    while (walker.nextNode()) {
+      textNodes.push(walker.currentNode as Text);
+    }
+
+    textNodes.forEach((node) => {
+      if (!node.nodeValue || !node.nodeValue.includes('\n')) return;
+
+      // 如果是处于容器首尾两端的纯缩进空白节点，直接移除
+      if (node.nodeValue.trim() === '') {
+        if (!node.previousSibling || !node.nextSibling) {
+          node.remove();
+          return;
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      const parts = node.nodeValue.split('\n');
+      parts.forEach((part, index) => {
+        if (index > 0) {
+          fragment.appendChild(document.createElement('br'));
+        }
+        if (part) {
+          fragment.appendChild(document.createTextNode(part));
+        }
+      });
+      node.parentNode?.replaceChild(fragment, node);
+    });
   }
 }

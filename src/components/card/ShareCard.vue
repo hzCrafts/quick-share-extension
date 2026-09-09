@@ -708,11 +708,19 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   -webkit-text-fill-color: transparent;
 }
 
-/* 忽略上下文中的多余图片与按钮以维持纯净书摘质感 */
+/* 忽略上下文中的多余图片与按钮以维持纯净书摘质感，并防御空列表项导致的孤立圆点 */
 :deep(.quick-share-excerpt-top-fade img),
 :deep(.quick-share-excerpt-bottom-fade img),
 :deep(.quick-share-excerpt-top-fade button),
 :deep(.quick-share-excerpt-bottom-fade button),
+:deep(.quick-share-excerpt-top-fade li:empty),
+:deep(.quick-share-excerpt-bottom-fade li:empty),
+:deep(.quick-share-excerpt-top-fade ul:empty),
+:deep(.quick-share-excerpt-bottom-fade ul:empty),
+:deep(.quick-share-excerpt-top-fade ol:empty),
+:deep(.quick-share-excerpt-bottom-fade ol:empty),
+:deep(.quick-share-excerpt-top-fade p:empty),
+:deep(.quick-share-excerpt-bottom-fade p:empty),
 :deep(.cdk-visually-hidden),
 :deep(.visually-hidden),
 :deep(.sr-only),
