@@ -72,19 +72,51 @@ export class GeminiAdapter extends BaseAdapter {
   }
 
   private scanAndInject(): void {
-    const responses = document.querySelectorAll<HTMLElement>(
-      'model-response, response-container, div.conversation-container'
+    // 1. 直接定位所有 Gemini 回复底部的操作栏容器
+    const actionBars: HTMLElement[] = [];
+
+    // (1) 查找显式的 response-action-bar 或 .buttons-container-v2
+    const directActionBars = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'response-action-bar .buttons-container-v2, response-action-bar, .buttons-container-v2, [class*="buttons-container-v2"]'
+      )
     );
+    directActionBars.forEach((bar) => {
+      const targetContainer = bar.querySelector<HTMLElement>('.buttons-container-v2') || bar;
+      if (!actionBars.includes(targetContainer)) {
+        actionBars.push(targetContainer);
+      }
+    });
 
-    responses.forEach((resEl) => {
-      // 寻找底部操作栏 (.buttons-container-v2, response-action-bar, etc.)
-      const actionsBar =
-        resEl.querySelector<HTMLElement>('.buttons-container-v2') ||
-        resEl.querySelector<HTMLElement>('response-action-bar .buttons-container-v2') ||
-        resEl.querySelector<HTMLElement>('response-action-bar, .action-bar, .response-footer, div[class*="action-bar"]') ||
-        resEl.querySelector<HTMLElement>('message-content + *');
+    // (2) 备用：通过操作栏内部的固定按钮（点赞、点踩、复制、分享等）向上回溯定位操作栏
+    const actionButtons = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'button[aria-label*="赞"], button[aria-label*="踩"], button[aria-label*="好的回答"], button[aria-label*="不好的回答"], button[aria-label*="Good response"], button[aria-label*="Bad response"], button[aria-label*="Copy"], button[aria-label*="复制"], button[aria-label*="Share"], button[aria-label*="分享"], button[aria-label*="More"], button[aria-label*="更多"]'
+      )
+    );
+    actionButtons.forEach((btn) => {
+      if (btn.closest('chat-window-side-nav, .input-area, .chat-input-container, form, mat-sidenav')) return;
+      const parentBar = btn.closest<HTMLElement>(
+        '.buttons-container-v2, response-action-bar, div[class*="action-bar"], div[class*="response-footer"]'
+      );
+      if (parentBar && !actionBars.includes(parentBar)) {
+        actionBars.push(parentBar);
+      }
+    });
 
-      if (!actionsBar || actionsBar.querySelector('.quick-share-gemini-btn, .quick-share-gemini-wrapper')) return;
+    // 2. 对找到的每一个 actionsBar 进行注入
+    actionBars.forEach((actionsBar) => {
+      // 检查操作栏自身是否已注入
+      if (actionsBar.querySelector('.quick-share-gemini-btn, .quick-share-gemini-wrapper')) return;
+
+      // 向上寻找所属的 Model 回答容器 turn
+      const turn =
+        actionsBar.closest<HTMLElement>('model-response, response-container, div.conversation-container') ||
+        actionsBar.parentElement;
+      if (!turn) return;
+
+      // 检查所属的回答 turn 是否已经注入过按钮（彻底防止多层容器重复注入）
+      if (turn.querySelector('.quick-share-gemini-btn, .quick-share-gemini-wrapper')) return;
 
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -120,7 +152,7 @@ export class GeminiAdapter extends BaseAdapter {
         e.preventDefault();
         e.stopPropagation();
         if (this.onShareCallback) {
-          this.onShareCallback(this.extract(resEl));
+          this.onShareCallback(this.extract(turn));
         }
       };
 
