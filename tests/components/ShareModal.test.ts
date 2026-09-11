@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import ShareModal from '@/components/modal/ShareModal.vue';
 import type { PostData } from '@/types/post';
 
@@ -29,7 +29,6 @@ describe('ShareModal 视图模式与 DOM 调试模式测试', () => {
 
     expect(wrapper.text()).toContain('预览图');
     expect(wrapper.text()).toContain('真实 DOM');
-    expect(wrapper.text()).toContain('DEBUG');
   });
 
   it('点击「真实 DOM」按钮可无缝切换为活体 DOM 审查模式', async () => {
@@ -48,10 +47,30 @@ describe('ShareModal 视图模式与 DOM 调试模式测试', () => {
     // 验证切换为 DOM 模式后，悬浮工具栏出现「复制 HTML」和「控制台打印/已打印」辅助按钮
     expect(wrapper.text()).toContain('复制 HTML');
     expect(wrapper.text()).toMatch(/控制台打印|已打印/);
-    expect(wrapper.text()).toContain('DOM 调试模式');
 
     // 验证视口内部挂载了真实的 ShareCard 组件 DOM 节点
     expect(wrapper.find('.quick-share-rich-body').exists()).toBe(true);
     expect(wrapper.html()).toContain('第一段：架构与抽象');
+  });
+
+  it('点击收起侧边栏按钮可切换侧边栏折叠状态', async () => {
+    const wrapper = mount(ShareModal, {
+      props: {
+        post: samplePost,
+        visible: true,
+      },
+    });
+
+    await flushPromises();
+
+    const toggleBtn = wrapper.find('button[title="收起侧边栏"]');
+    expect(toggleBtn.exists()).toBe(true);
+
+    await toggleBtn.trigger('click');
+    await flushPromises();
+
+    // 侧边栏变为收起状态，Tooltip 切换为展开
+    const expandBtn = wrapper.find('button[title="展开侧边栏 (卡片主题与配置)"]');
+    expect(expandBtn.exists()).toBe(true);
   });
 });

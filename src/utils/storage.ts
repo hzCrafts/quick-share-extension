@@ -4,6 +4,7 @@ export type UiThemeMode = 'system' | 'light' | 'dark';
 
 export const KEY_LAST_CARD_THEME = 'quickshare_last_card_theme';
 export const KEY_LAST_SHOW_OUTER_PADDING = 'quickshare_last_show_outer_padding';
+export const KEY_SIDEBAR_COLLAPSED = 'quickshare_sidebar_collapsed';
 export const KEY_UI_THEME_MODE = 'quickshare_ui_theme_mode';
 
 function getStorageApi() {
@@ -76,6 +77,38 @@ export async function setLastShowOuterPadding(show: boolean): Promise<void> {
     });
   } catch (e) {
     console.warn('[QuickShare] Failed to save show outer padding to storage:', e);
+  }
+}
+
+/**
+ * 获取侧边栏是否收起状态
+ */
+export async function getSidebarCollapsed(): Promise<boolean> {
+  try {
+    const storage = getStorageApi();
+    if (!storage) return false;
+    const data = await storage.local.get(KEY_SIDEBAR_COLLAPSED);
+    if (typeof data[KEY_SIDEBAR_COLLAPSED] === 'boolean') {
+      return data[KEY_SIDEBAR_COLLAPSED];
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * 保存侧边栏是否收起状态
+ */
+export async function setSidebarCollapsed(collapsed: boolean): Promise<void> {
+  try {
+    const storage = getStorageApi();
+    if (!storage) return;
+    await storage.local.set({
+      [KEY_SIDEBAR_COLLAPSED]: collapsed,
+    });
+  } catch (e) {
+    console.warn('[QuickShare] Failed to save sidebar collapsed state to storage:', e);
   }
 }
 

@@ -12,7 +12,14 @@ import {
 } from '@/utils/theme-engine';
 import ShareCard from '@/components/card/ShareCard.vue';
 import { renderCardToCanvas, copyCardToClipboard, downloadCardAsPng } from '@/utils/exporter';
-import { getLastCardTheme, setLastCardTheme, getLastShowOuterPadding, setLastShowOuterPadding } from '@/utils/storage';
+import { 
+  getLastCardTheme, 
+  setLastCardTheme, 
+  getLastShowOuterPadding, 
+  setLastShowOuterPadding,
+  getSidebarCollapsed,
+  setSidebarCollapsed
+} from '@/utils/storage';
 import { 
   X, 
   Copy, 
@@ -31,7 +38,9 @@ import {
   Code2,
   Image as ImageIcon,
   Terminal,
-  FileCode
+  FileCode,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -39,9 +48,11 @@ const props = withDefaults(
     post: PostData | null;
     visible: boolean;
     isExtracting?: boolean;
+    initialSidebarCollapsed?: boolean;
   }>(),
   {
     isExtracting: false,
+    initialSidebarCollapsed: undefined,
   }
 );
 
@@ -56,6 +67,10 @@ const platformName = computed(() => props.post?.platform ? props.post.platform.t
 const viewMode = ref<'image' | 'dom'>('image');
 const copyHtmlSuccess = ref(false);
 const logConsoleSuccess = ref(false);
+
+// 侧边栏折叠状态与动画控制（初次挂载静默无动画，仅在用户交互时激活动画）
+const isSidebarCollapsed = ref(props.initialSidebarCollapsed ?? false);
+const isSidebarAnimated = ref(false);
 
 // 离屏渲染与视口引用
 const offscreenCardRef = ref<HTMLElement | null>(null);
@@ -359,6 +374,12 @@ const toggleOuterPadding = () => {
   setLastShowOuterPadding(options.showOuterPadding);
 };
 
+const toggleSidebar = () => {
+  isSidebarAnimated.value = true;
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
+  setSidebarCollapsed(isSidebarCollapsed.value);
+};
+
 // 导出当前主题 JSON
 const handleExportCurrentTheme = async () => {
   const current = getThemeById(options.themeId, customThemes.value);
@@ -457,11 +478,12 @@ const handleKeyDown = (e: KeyboardEvent) => {
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(async () => {
-  // 加载自定义主题与恢复上次选中的卡片主题/外层背景边距
-  const [loadedCustoms, savedTheme, savedOuterPadding] = await Promise.all([
+  // 加载自定义主题与恢复上次选中的卡片主题/外层背景边距/侧边栏折叠状态
+  const [loadedCustoms, savedTheme, savedOuterPadding, savedSidebarCollapsed] = await Promise.all([
     loadCustomThemes(),
     getLastCardTheme(),
     getLastShowOuterPadding(),
+    getSidebarCollapsed(),
   ]);
   customThemes.value = loadedCustoms;
 
@@ -472,6 +494,13 @@ onMounted(async () => {
     options.themeId = 'raycast-dark';
   }
   options.showOuterPadding = savedOuterPadding;
+  isSidebarCollapsed.value = savedSidebarCollapsed;
+
+  // 初始静默渲染完成后，在下一个动画帧开启平滑过渡，防止初次打开弹窗触发收起/展开动画
+  await nextTick();
+  requestAnimationFrame(() => {
+    isSidebarAnimated.value = true;
+  });
 
   if (props.post) {
     if (typeof window !== 'undefined') {
@@ -508,10 +537,12 @@ watch(
   () => props.visible,
   async (newVal) => {
     if (newVal) {
-      const [loadedCustoms, savedTheme, savedOuterPadding] = await Promise.all([
+      isSidebarAnimated.value = false;
+      const [loadedCustoms, savedTheme, savedOuterPadding, savedSidebarCollapsed] = await Promise.all([
         loadCustomThemes(),
         getLastCardTheme(),
         getLastShowOuterPadding(),
+        getSidebarCollapsed(),
       ]);
       customThemes.value = loadedCustoms;
       if (savedTheme) {
@@ -519,6 +550,12 @@ watch(
         options.themeId = resolved.id;
       }
       options.showOuterPadding = savedOuterPadding;
+      isSidebarCollapsed.value = savedSidebarCollapsed;
+
+      await nextTick();
+      requestAnimationFrame(() => {
+        isSidebarAnimated.value = true;
+      });
     }
   }
 );
@@ -568,10 +605,22 @@ watch(
     >
       <!-- Header: 极简纯净，去 AI 味 -->
       <div class="px-6 py-3 border-b border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0 bg-white dark:bg-[#18181b]">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold tracking-tight text-zinc-900 dark:text-white">QuickShare</span>
-          <span class="text-xs text-zinc-300 dark:text-zinc-700">/</span>
-          <span class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ platformName }}</span>
+        <div class="flex items-center gap-2.5">
+          <button
+            type="button"
+            @click="toggleSidebar"
+            class="p-1.5 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+            :title="isSidebarCollapsed ? '展开侧边栏 (卡片主题与配置)' : '收起侧边栏'"
+          >
+            <PanelLeftOpen v-if="isSidebarCollapsed" class="w-4 h-4" />
+            <PanelLeftClose v-else class="w-4 h-4" />
+          </button>
+          <div class="w-[1px] h-3.5 bg-zinc-200 dark:bg-zinc-700" />
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold tracking-tight text-zinc-900 dark:text-white">QuickShare</span>
+            <span class="text-xs text-zinc-300 dark:text-zinc-700">/</span>
+            <span class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{{ platformName }}</span>
+          </div>
         </div>
 
         <div class="flex items-center gap-3">
@@ -595,7 +644,6 @@ watch(
             >
               <Code2 class="w-3.5 h-3.5" />
               <span>真实 DOM</span>
-              <span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono font-medium">DEBUG</span>
             </button>
           </div>
 
@@ -610,15 +658,23 @@ watch(
 
       <!-- Main Body: 永久左右分栏 -->
       <div class="flex-1 flex flex-row overflow-hidden bg-zinc-50/50 dark:bg-[#121214] min-h-0">
-        <!-- 左侧：精简单列主题控制台 (固定宽度 w-52) -->
-        <div class="w-52 border-r border-zinc-200/70 dark:border-white/10 p-3.5 overflow-y-auto space-y-4 bg-white dark:bg-[#18181b] shrink-0">
+        <!-- 左侧：精简单列主题控制台 (固定宽度 w-52，支持收起/展开) -->
+        <div
+          class="bg-white dark:bg-[#18181b] shrink-0"
+          :class="[
+            isSidebarAnimated ? 'transition-all duration-200 ease-in-out' : '',
+            isSidebarCollapsed
+              ? 'w-0 p-0 border-r-0 opacity-0 pointer-events-none overflow-hidden'
+              : 'w-52 border-r border-zinc-200/70 dark:border-white/10 p-3.5 opacity-100 overflow-y-auto space-y-4'
+          ]"
+        >
           <!-- 1. 主题选择 -->
           <div class="space-y-2">
             <div class="flex items-center justify-between px-1">
               <label class="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                 卡片主题
               </label>
-              <!-- 导出/导入主题入口 -->
+              <!-- 导出/导入/收起主题入口 -->
               <div class="flex items-center gap-0.5">
                 <button
                   @click="handleExportCurrentTheme"
@@ -634,6 +690,13 @@ watch(
                   title="导入自定义主题 (JSON)"
                 >
                   <Upload class="w-3.5 h-3.5" />
+                </button>
+                <button
+                  @click="toggleSidebar"
+                  class="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                  title="收起侧边栏"
+                >
+                  <PanelLeftClose class="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -710,10 +773,7 @@ watch(
                     : 'border-zinc-200/80 dark:border-zinc-800/80 text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-900/40 hover:bg-zinc-50/80 dark:hover:bg-zinc-800/60'
                 ]"
               >
-                <div class="flex flex-col pr-1">
-                  <span class="font-semibold leading-tight">背景边距</span>
-                  <span class="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">直角外衬底与光晕</span>
-                </div>
+                <span class="font-medium leading-tight">背景衬底边距</span>
                 <!-- Switch Pill (标准 macOS / Raycast 纯白滑块与平滑滑道) -->
                 <div
                   class="w-8 h-4.5 rounded-full transition-colors relative flex items-center p-0.5 shrink-0"
@@ -876,17 +936,8 @@ watch(
         </div>
       </div>
 
-      <!-- Footer: 操作栏 -->
-      <div class="px-6 py-3.5 bg-white dark:bg-[#18181b] border-t border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0">
-        <span class="text-xs text-zinc-400 dark:text-zinc-500">
-          <template v-if="viewMode === 'dom'">
-            🛠️ DOM 调试模式 • 可直接使用 DevTools 审查元素与排查 DOM 结构 (快捷键: Alt+D)
-          </template>
-          <template v-else>
-            {{ !post || isExtracting || isRendering ? '处理中 • 请稍候...' : '已就绪 • 2.5x Retina 超高清完整长图导出' }}
-          </template>
-        </span>
-
+      <!-- Footer: 极简纯净操作栏 -->
+      <div class="px-6 py-3 bg-white dark:bg-[#18181b] border-t border-zinc-100 dark:border-white/10 flex items-center justify-end shrink-0">
         <div class="flex items-center gap-2.5">
           <!-- 复制链接按钮 -->
           <button
