@@ -86,5 +86,215 @@ describe('XAdapter 结构解析与数据提取测试', () => {
       expect(brTags.length).toBe(3);
       expect(postData?.contentHtml).toContain('第一行观点<br>第二行分析<br><br>第三行结论');
     });
+
+    it('正确向上追溯二级评论的主帖 (Root Post) 与上级回复 (Parent Post)', async () => {
+      const threadHtml = `
+        <article data-testid="tweet" id="tweet-root">
+          <div data-testid="User-Name"><a href="/elonmusk"><span>Elon Musk</span></a></div>
+          <div data-testid="tweetText"><span>主帖内容：Optimus release date</span></div>
+          <a href="/elonmusk/status/1000"><time>1h</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-parent">
+          <div data-testid="User-Name"><a href="/user1"><span>User 1</span></a></div>
+          <div data-testid="tweetText"><span>一级评论：When is demo?</span></div>
+          <a href="/user1/status/1001"><time>45m</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-current">
+          <div data-testid="User-Name"><a href="/user2"><span>User 2</span></a></div>
+          <div><span>Replying to </span><a href="/user1">@user1</a></div>
+          <div data-testid="tweetText"><span>二级评论：Probably next month.</span></div>
+          <a href="/user2/status/1002"><time>30m</time></a>
+        </article>
+      `;
+      document.body.innerHTML = threadHtml;
+      const currentTweetEl = document.getElementById('tweet-current')!;
+
+      const postData = await adapter.extract(currentTweetEl);
+      expect(postData).not.toBeNull();
+      expect(postData?.contextThread).toBeDefined();
+
+      // 验证上级回复正确识别为 User 1
+      expect(postData?.contextThread?.parentPost?.author.name).toBe('User 1');
+      expect(postData?.contextThread?.parentPost?.content).toBe('一级评论：When is demo?');
+
+      // 验证主帖
+      expect(postData?.contextThread?.rootPost?.author.name).toBe('Elon Musk');
+      expect(postData?.contextThread?.rootPost?.content).toBe('主帖内容：Optimus release date');
+    });
+
+    it('当评论直接回复主帖（即使上方有其他兄弟评论）时，正确排除无关的上一个评论，仅保留主帖', async () => {
+      const threadHtml = `
+        <article data-testid="tweet" id="tweet-root">
+          <div data-testid="User-Name"><a href="/elonmusk"><span>Elon Musk</span></a></div>
+          <div data-testid="tweetText"><span>主帖内容：Optimus release date</span></div>
+          <a href="/elonmusk/status/1000"><time>1h</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-sibling">
+          <div data-testid="User-Name"><a href="/user1"><span>User 1</span></a></div>
+          <div><span>Replying to </span><a href="/elonmusk">@elonmusk</a></div>
+          <div data-testid="tweetText"><span>兄弟评论1：Cool!</span></div>
+          <a href="/user1/status/1001"><time>45m</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-current">
+          <div data-testid="User-Name"><a href="/user2"><span>User 2</span></a></div>
+          <div><span>Replying to </span><a href="/elonmusk">@elonmusk</a></div>
+          <div data-testid="tweetText"><span>兄弟评论2（直接回复主帖）：Amazing progress.</span></div>
+          <a href="/user2/status/1002"><time>30m</time></a>
+        </article>
+      `;
+      document.body.innerHTML = threadHtml;
+      const currentTweetEl = document.getElementById('tweet-current')!;
+
+      const postData = await adapter.extract(currentTweetEl);
+      expect(postData).not.toBeNull();
+      expect(postData?.contextThread).toBeDefined();
+
+      // 验证由于当前评论直接回复 @elonmusk，上方的 User 1 兄弟评论被正确排除（parentPost 为 undefined）
+      expect(postData?.contextThread?.parentPost).toBeUndefined();
+    });
+
+    it('当点击主帖 (Focal Tweet) 本身时，不生成任何向上上下文 (contextThread 为 undefined)', async () => {
+      // 模拟当前页面处于主帖 URL
+      Object.defineProperty(window, 'location', {
+        value: new URL('https://x.com/elonmusk/status/1000'),
+        writable: true,
+      });
+
+      const rootHtml = `
+        <article data-testid="tweet" id="tweet-root">
+          <div data-testid="User-Name"><a href="/elonmusk"><span>Elon Musk</span></a></div>
+          <div data-testid="tweetText"><span>主帖内容：Optimus release date</span></div>
+          <a href="/elonmusk/status/1000"><time>1h</time></a>
+        </article>
+      `;
+      document.body.innerHTML = rootHtml;
+      const rootTweetEl = document.getElementById('tweet-root')!;
+
+      const postData = await adapter.extract(rootTweetEl);
+      expect(postData).not.toBeNull();
+      // 主帖自身绝不生成向上上下文
+      expect(postData?.contextThread).toBeUndefined();
+    });
+
+    it('当页面存在主帖作者的其他散落评论时，精准识别主帖与评论，不将同一作者的其他回复误认作父级', async () => {
+      Object.defineProperty(window, 'location', {
+        value: new URL('https://x.com/xiqingongzi/status/2098267710362898575'),
+        writable: true,
+      });
+
+      const threadHtml = `
+        <article data-testid="tweet" id="tweet-root">
+          <div data-testid="User-Name"><a href="/xiqingongzi"><span>Bestony | 白宦成</span></a></div>
+          <div data-testid="tweetText"><span>主帖内容：忘了和大家说，我曾经是飞书开放平台负责 OpenAPI 治理和审批的产品经理</span></div>
+          <a href="/xiqingongzi/status/2098267710362898575"><time>4h</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-other-reply">
+          <div data-testid="User-Name"><a href="/xiqingongzi"><span>Bestony | 白宦成</span></a></div>
+          <div><span>Replying to </span><a href="/user_other">@user_other</a></div>
+          <div data-testid="tweetText"><span>评论回复：会涉及到 breaking changes</span></div>
+          <a href="/xiqingongzi/status/2098270000000000000"><time>3h</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-evan">
+          <div data-testid="User-Name"><a href="/RanRan113080440"><span>Evan</span></a></div>
+          <div><span>Replying to </span><a href="/xiqingongzi">@xiqingongzi</a></div>
+          <div data-testid="tweetText"><span>评论内容：既然遇到了，我就先骂一下，你们字节的那些开发文档</span></div>
+          <a href="/RanRan113080440/status/2098280768472793526"><time>2h</time></a>
+        </article>
+      `;
+      document.body.innerHTML = threadHtml;
+      const evanTweetEl = document.getElementById('tweet-evan')!;
+
+      const postData = await adapter.extract(evanTweetEl);
+      expect(postData).not.toBeNull();
+      expect(postData?.contextThread).toBeDefined();
+
+      // 验证由于 Evan 与 tweet-other-reply 之间没有 Thread 连线且 Evan 是直接评论主帖，parentPost 必须为 undefined
+      expect(postData?.contextThread?.parentPost).toBeUndefined();
+
+      // 验证 rootPost 精准命中真正的主帖，而不是那条 breaking changes 评论
+      expect(postData?.contextThread?.rootPost?.url).toContain('2098267710362898575');
+      expect(postData?.contextThread?.rootPost?.content).toContain('忘了和大家说');
+    });
+
+    it('当评论上方存在 Starlink 等推广广告推文时，广告被彻底过滤，评论精准关联真实主帖且 parentPost 为 undefined', async () => {
+      Object.defineProperty(window, 'location', {
+        value: new URL('https://x.com/xiqingongzi/status/2098267710362898575'),
+        writable: true,
+      });
+
+      const threadHtml = `
+        <article data-testid="tweet" id="tweet-root">
+          <div data-testid="User-Name"><a href="/xiqingongzi"><span>Bestony | 白宦成</span></a></div>
+          <div data-testid="tweetText"><span>主帖内容：忘了和大家说</span></div>
+          <a href="/xiqingongzi/status/2098267710362898575"><time>4h</time></a>
+        </article>
+        <article data-testid="tweet" id="tweet-ad">
+          <div data-testid="User-Name"><a href="/Starlink"><span>Starlink</span></a></div>
+          <div><span>Ad</span></div>
+          <div data-testid="tweetText"><span>High-speed internet anywhere. Order now.</span></div>
+          <!-- 广告推文通常没有常规的 /status/ 链接 -->
+          <a href="https://starlink.com/ads"><span>Sponsored</span></a>
+        </article>
+        <article data-testid="tweet" id="tweet-evan">
+          <div data-testid="User-Name"><a href="/RanRan113080440"><span>Evan</span></a></div>
+          <!-- 一级评论正文上方无 Replying to @Starlink -->
+          <div data-testid="tweetText"><span>评论内容：既然遇到了，我就先骂一下</span></div>
+          <a href="/RanRan113080440/status/2098280768472793526"><time>2h</time></a>
+        </article>
+      `;
+      document.body.innerHTML = threadHtml;
+      const evanTweetEl = document.getElementById('tweet-evan')!;
+
+      const postData = await adapter.extract(evanTweetEl);
+      expect(postData).not.toBeNull();
+      expect(postData?.contextThread).toBeDefined();
+
+      // 验证 Starlink 广告被完全过滤，parentPost 为 undefined
+      expect(postData?.contextThread?.parentPost).toBeUndefined();
+
+      // 验证 rootPost 仍为真实主帖 Bestony
+      expect(postData?.contextThread?.rootPost?.author.name).toBe('Bestony | 白宦成');
+    });
+
+    it('当点击二级回复（如 Bestony 回复 Evan 的评论）时，精准识别 parentPost (Evan) 与 rootPost (Bestony 主帖)', async () => {
+      Object.defineProperty(window, 'location', {
+        value: new URL('https://x.com/xiqingongzi/status/2098267710362898575'),
+        writable: true,
+      });
+
+      const threadHtml = `
+        <article data-testid="tweet" id="tweet-root">
+          <div data-testid="User-Name"><a href="/xiqingongzi"><span>Bestony | 白宦成</span></a></div>
+          <div data-testid="tweetText"><span>主帖内容：忘了和大家说</span></div>
+          <a href="/xiqingongzi/status/2098267710362898575"><time>4h</time></a>
+        </article>
+        <div data-testid="cellInnerDiv">
+          <article data-testid="tweet" id="tweet-evan">
+            <div data-testid="User-Name"><a href="/RanRan113080440"><span>Evan</span></a></div>
+            <div data-testid="tweetText"><span>评论内容：既然遇到了，我就先骂一下</span></div>
+            <a href="/RanRan113080440/status/2098280768472793526"><time>2h</time></a>
+          </article>
+          <article data-testid="tweet" id="tweet-bestony-reply">
+            <div data-testid="User-Name"><a href="/xiqingongzi"><span>Bestony | 白宦成</span></a></div>
+            <div data-testid="tweetText"><span>@RanRan113080440 这里几个事：1. 飞书的文档真的治理过；我们再友商里不算差</span></div>
+            <a href="/xiqingongzi/status/2098285000000000000"><time>1h</time></a>
+          </article>
+        </div>
+      `;
+      document.body.innerHTML = threadHtml;
+      const bestonyReplyEl = document.getElementById('tweet-bestony-reply')!;
+
+      const postData = await adapter.extract(bestonyReplyEl);
+      expect(postData).not.toBeNull();
+      expect(postData?.contextThread).toBeDefined();
+
+      // 验证精准提取 Evan 为直接上级评论
+      expect(postData?.contextThread?.parentPost?.author.name).toBe('Evan');
+      expect(postData?.contextThread?.parentPost?.content).toContain('既然遇到了，我就先骂一下');
+
+      // 验证精准提取 Bestony 主帖为顶层 Root Post
+      expect(postData?.contextThread?.rootPost?.author.name).toBe('Bestony | 白宦成');
+      expect(postData?.contextThread?.rootPost?.content).toContain('忘了和大家说');
+    });
   });
 });

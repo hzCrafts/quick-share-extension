@@ -217,8 +217,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         :style="{ background: currentTheme.card.borderHighlight }"
       />
 
-      <!-- Header: 作者信息 & 站点 Favicon 标识 -->
-      <div class="qs-card-header">
+      <!-- Header: 作者信息 & 站点 Favicon 标识 (仅在非 Thread 模式下展示标准 Header，Thread 模式由下方专属连线 Header 渲染) -->
+      <div v-if="!post.parentThreadPost" class="qs-card-header">
         <div class="qs-author-box">
           <img
             v-if="post.author.avatarUrl"
@@ -267,146 +267,322 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         </div>
       </div>
 
-      <!-- Content: 标题（如有）与正文/图文流 -->
-      <div class="qs-card-content">
-        <!-- 1. AI 对话场景：用户提问 Prompt -->
-        <div
-          v-if="isAiPlatform && (post.title || post.promptHtml)"
-          class="qs-prompt-container"
-        >
-          <div
-            class="qs-prompt-header"
-            :style="{ color: themeCssVars['--qs-prompt-header-color'] }"
-          >
-            <span class="qs-prompt-dot"></span>
-            Prompt
-          </div>
-          <!-- 富文本 Prompt (支持原样文本、全宽高清图片与文件卡片) -->
-          <div
-            v-if="post.promptHtml"
-            class="quick-share-prompt-body"
-            v-html="post.promptHtml"
-          />
-          <!-- 纯文本 Prompt 兜底 -->
-          <div
-            v-else
-            class="qs-prompt-plain"
-          >
-            {{ post.title }}
+      <!-- Content 区域 -->
+      <!-- A. Thread 连线对话链模式 (主帖/上级回复 + 当前评论) -->
+      <div v-if="post.parentThreadPost" class="qs-thread-wrapper">
+        <!-- 顶栏平台 Badge -->
+        <div v-if="!isAiPlatform" class="qs-thread-top-bar">
+          <div class="qs-platform-badge" :style="platformConfig.style">
+            <img
+              v-if="platformConfig.faviconUrl"
+              :src="platformConfig.faviconUrl"
+              alt="icon"
+              class="qs-platform-icon"
+              crossorigin="anonymous"
+              @error="(e: any) => e.target.style.display = 'none'"
+            />
+            <span style="flex-shrink: 0;">{{ platformConfig.name }}</span>
           </div>
         </div>
 
-        <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
-        <h3
-          v-else-if="post.title"
-          class="qs-post-title"
-        >
-          {{ post.title }}
-        </h3>
-        
-        <!-- 1. 划选摘录模式：保留原 DOM 格式，支持段落内水平渐变 + 段落外垂直渐变 -->
-        <div v-if="post.isExcerpt" class="qs-excerpt-wrapper">
-          <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
-          <div
-            v-if="post.excerptBeforeHtml"
-            class="quick-share-excerpt-top-fade quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.excerptBeforeHtml"
-          />
+        <div class="qs-thread-container">
+          <!-- 1. 上级推文 (Parent / Root Tweet) -->
+          <div class="qs-thread-item qs-thread-parent">
+            <div class="qs-thread-left-col">
+              <img
+                v-if="post.parentThreadPost.author.avatarUrl"
+                :src="post.parentThreadPost.author.avatarUrl"
+                alt="avatar"
+                class="qs-avatar-img"
+                :style="avatarRadiusStyle"
+                crossorigin="anonymous"
+              />
+              <div
+                v-else
+                class="qs-avatar-fallback"
+                :style="avatarRadiusStyle"
+              >
+                {{ post.parentThreadPost.author.name.slice(0, 1) }}
+              </div>
+              <!-- 垂直连接线 -->
+              <div class="qs-thread-connector-line" />
+            </div>
 
-          <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
-          <div
-            class="quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.contentHtml || post.content"
-          />
+            <div class="qs-thread-right-col">
+              <div class="qs-author-meta">
+                <div class="qs-author-name">
+                  {{ post.parentThreadPost.author.name }}
+                </div>
+                <div v-if="post.parentThreadPost.author.handle" class="qs-author-handle">
+                  {{ post.parentThreadPost.author.handle }}
+                </div>
+              </div>
 
-          <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
-          <div
-            v-if="post.excerptAfterHtml"
-            class="quick-share-excerpt-bottom-fade quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.excerptAfterHtml"
-          />
+              <!-- 上级推文正文 -->
+              <div class="qs-thread-body">
+                <div
+                  v-if="post.parentThreadPost.contentHtml"
+                  class="quick-share-rich-body"
+                  :style="{
+                    fontSize: `${15 * options.fontScale}px`,
+                    lineHeight: 1.7,
+                  }"
+                  v-html="post.parentThreadPost.contentHtml"
+                />
+                <p
+                  v-else
+                  class="qs-plain-content"
+                  :style="{
+                    fontSize: `${15 * options.fontScale}px`,
+                    lineHeight: 1.7,
+                  }"
+                >
+                  {{ post.parentThreadPost.content }}
+                </p>
+              </div>
+
+              <!-- 上级推文配图/媒体 -->
+              <div
+                v-if="post.parentThreadPost.media && post.parentThreadPost.media.length > 0"
+                class="qs-media-gallery"
+                style="margin-top: 10px;"
+              >
+                <div
+                  v-for="(item, idx) in post.parentThreadPost.media"
+                  :key="idx"
+                  class="qs-media-item"
+                >
+                  <img
+                    :src="item.posterUrl || item.url"
+                    alt="media"
+                    class="qs-media-img"
+                    crossorigin="anonymous"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 当前评论推文 (Target Reply Tweet) -->
+          <div class="qs-thread-item qs-thread-current">
+            <div class="qs-thread-left-col">
+              <img
+                v-if="post.author.avatarUrl"
+                :src="post.author.avatarUrl"
+                alt="avatar"
+                class="qs-avatar-img"
+                :style="avatarRadiusStyle"
+                crossorigin="anonymous"
+              />
+              <div
+                v-else
+                class="qs-avatar-fallback"
+                :style="avatarRadiusStyle"
+              >
+                {{ post.author.name.slice(0, 1) }}
+              </div>
+            </div>
+
+            <div class="qs-thread-right-col">
+              <div class="qs-author-meta">
+                <div class="qs-author-name">
+                  {{ post.author.name }}
+                </div>
+                <div v-if="post.author.handle" class="qs-author-handle">
+                  {{ post.author.handle }}
+                </div>
+              </div>
+
+              <!-- 评论正文 -->
+              <div class="qs-thread-body">
+                <div
+                  v-if="post.contentHtml"
+                  class="quick-share-rich-body"
+                  :style="{
+                    fontSize: `${15 * options.fontScale}px`,
+                    lineHeight: 1.7,
+                  }"
+                  v-html="post.contentHtml"
+                />
+                <p
+                  v-else
+                  class="qs-plain-content"
+                  :style="{
+                    fontSize: `${15 * options.fontScale}px`,
+                    lineHeight: 1.7,
+                  }"
+                >
+                  {{ post.content }}
+                </p>
+              </div>
+
+              <!-- 评论配图/媒体 -->
+              <div
+                v-if="post.media && post.media.length > 0"
+                class="qs-media-gallery"
+                style="margin-top: 10px;"
+              >
+                <div
+                  v-for="(item, idx) in post.media"
+                  :key="idx"
+                  class="qs-media-item"
+                >
+                  <img
+                    :src="item.posterUrl || item.url"
+                    alt="media"
+                    class="qs-media-img"
+                    crossorigin="anonymous"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        <!-- 2. 全文分享模式 -->
-        <template v-else>
-          <!-- 富文本图文混排模式 -->
-          <div
-            v-if="post.contentHtml"
-            class="quick-share-rich-body"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-            v-html="post.contentHtml"
-          />
-
-          <!-- 纯文本模式 -->
-          <p
-            v-else
-            class="qs-plain-content"
-            :style="{
-              fontSize: `${15 * options.fontScale}px`,
-              lineHeight: 1.7,
-            }"
-          >
-            {{ post.content }}
-          </p>
-        </template>
       </div>
 
-      <!-- Media: X / 独立媒体图片/视频 (100% 宽度，高度自动撑高) -->
-      <div
-        v-if="!post.isExcerpt && post.media && post.media.length > 0"
-        class="qs-media-gallery"
-      >
+      <!-- B. 标准单推文/文章模式 -->
+      <template v-else>
+        <!-- Content: 标题（如有）与正文/图文流 -->
+        <div class="qs-card-content">
+          <!-- 1. AI 对话场景：用户提问 Prompt -->
+          <div
+            v-if="isAiPlatform && (post.title || post.promptHtml)"
+            class="qs-prompt-container"
+          >
+            <div
+              class="qs-prompt-header"
+              :style="{ color: themeCssVars['--qs-prompt-header-color'] }"
+            >
+              <span class="qs-prompt-dot"></span>
+              Prompt
+            </div>
+            <!-- 富文本 Prompt (支持原样文本、全宽高清图片与文件卡片) -->
+            <div
+              v-if="post.promptHtml"
+              class="quick-share-prompt-body"
+              v-html="post.promptHtml"
+            />
+            <!-- 纯文本 Prompt 兜底 -->
+            <div
+              v-else
+              class="qs-prompt-plain"
+            >
+              {{ post.title }}
+            </div>
+          </div>
+
+          <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
+          <h3
+            v-else-if="post.title"
+            class="qs-post-title"
+          >
+            {{ post.title }}
+          </h3>
+          
+          <!-- 1. 划选摘录模式：保留原 DOM 格式，支持段落内水平渐变 + 段落外垂直渐变 -->
+          <div v-if="post.isExcerpt" class="qs-excerpt-wrapper">
+            <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
+            <div
+              v-if="post.excerptBeforeHtml"
+              class="quick-share-excerpt-top-fade quick-share-rich-body"
+              :style="{
+                fontSize: `${15 * options.fontScale}px`,
+                lineHeight: 1.7,
+              }"
+              v-html="post.excerptBeforeHtml"
+            />
+
+            <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
+            <div
+              class="quick-share-rich-body"
+              :style="{
+                fontSize: `${15 * options.fontScale}px`,
+                lineHeight: 1.7,
+              }"
+              v-html="post.contentHtml || post.content"
+            />
+
+            <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
+            <div
+              v-if="post.excerptAfterHtml"
+              class="quick-share-excerpt-bottom-fade quick-share-rich-body"
+              :style="{
+                fontSize: `${15 * options.fontScale}px`,
+                lineHeight: 1.7,
+              }"
+              v-html="post.excerptAfterHtml"
+            />
+          </div>
+
+          <!-- 2. 全文分享模式 -->
+          <template v-else>
+            <!-- 富文本图文混排模式 -->
+            <div
+              v-if="post.contentHtml"
+              class="quick-share-rich-body"
+              :style="{
+                fontSize: `${15 * options.fontScale}px`,
+                lineHeight: 1.7,
+              }"
+              v-html="post.contentHtml"
+            />
+
+            <!-- 纯文本模式 -->
+            <p
+              v-else
+              class="qs-plain-content"
+              :style="{
+                fontSize: `${15 * options.fontScale}px`,
+                lineHeight: 1.7,
+              }"
+            >
+              {{ post.content }}
+            </p>
+          </template>
+        </div>
+
+        <!-- Media: X / 独立媒体图片/视频 (100% 宽度，高度自动撑高) -->
         <div
-          v-for="(item, idx) in post.media"
-          :key="idx"
-          class="qs-media-item"
+          v-if="!post.isExcerpt && post.media && post.media.length > 0"
+          class="qs-media-gallery"
         >
           <div
-            v-if="item.type === 'video'"
-            class="quick-share-video-container"
+            v-for="(item, idx) in post.media"
+            :key="idx"
+            class="qs-media-item"
           >
+            <div
+              v-if="item.type === 'video'"
+              class="quick-share-video-container"
+            >
+              <img
+                :src="item.posterUrl || item.url"
+                alt="video thumbnail"
+                class="qs-media-img"
+                crossorigin="anonymous"
+              />
+              <div class="qs-video-play-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-0.5">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <div
+                v-if="item.duration"
+                class="qs-video-duration-badge"
+              >
+                {{ item.duration }}
+              </div>
+            </div>
             <img
-              :src="item.posterUrl || item.url"
-              alt="video thumbnail"
+              v-else
+              :src="item.url"
+              alt="media"
               class="qs-media-img"
               crossorigin="anonymous"
             />
-            <div class="qs-video-play-badge">
-              <svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-0.5">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-            <div
-              v-if="item.duration"
-              class="qs-video-duration-badge"
-            >
-              {{ item.duration }}
-            </div>
           </div>
-          <img
-            v-else
-            :src="item.url"
-            alt="media"
-            class="qs-media-img"
-            crossorigin="anonymous"
-          />
         </div>
-      </div>
+      </template>
 
       <!-- Footer: 清洗后 URL 链接 -->
       <div
@@ -1198,6 +1374,74 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   border-radius: 4px;
   letter-spacing: 0.02em;
   pointer-events: none;
+}
+
+/* Thread 对话链连线布局 */
+.qs-thread-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.qs-thread-top-bar {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.qs-thread-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  width: 100%;
+}
+
+.qs-thread-item {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  position: relative;
+  width: 100%;
+}
+
+.qs-thread-parent {
+  padding-bottom: 18px;
+}
+
+.qs-thread-current {
+  padding-top: 2px;
+}
+
+.qs-thread-left-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 44px;
+}
+
+.qs-thread-connector-line {
+  width: 2px;
+  flex: 1;
+  min-height: 28px;
+  margin-top: 6px;
+  margin-bottom: -2px;
+  background-color: var(--qs-text-muted);
+  opacity: 0.28;
+  border-radius: 9999px;
+}
+
+.qs-thread-right-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.qs-thread-body {
+  margin-top: 6px;
 }
 
 /* Footer */

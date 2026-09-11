@@ -14,6 +14,11 @@ export interface PostMedia {
   posterUrl?: string;
 }
 
+export interface PostContextThread {
+  rootPost?: PostData;
+  parentPost?: PostData;
+}
+
 export interface PostData {
   id: string;
   platform: PlatformType;
@@ -28,6 +33,8 @@ export interface PostData {
   excerptAfterHtml?: string;
   media?: PostMedia[];
   createdAt?: string;
+  contextThread?: PostContextThread;
+  parentThreadPost?: PostData;
   stats?: {
     likes?: number | string;
     reposts?: number | string;

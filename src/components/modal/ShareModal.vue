@@ -28,7 +28,6 @@ import {
   Maximize2, 
   ZoomIn, 
   ZoomOut, 
-  RotateCcw, 
   Loader2, 
   ArrowLeftRight, 
   Link2,
@@ -40,7 +39,8 @@ import {
   Terminal,
   FileCode,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  MessageSquareQuote
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -71,6 +71,40 @@ const logConsoleSuccess = ref(false);
 // 侧边栏折叠状态与动画控制（初次挂载静默无动画，仅在用户交互时激活动画）
 const isSidebarCollapsed = ref(props.initialSidebarCollapsed ?? false);
 const isSidebarAnimated = ref(false);
+
+// 推文上下文关联模式：'none' (仅当前推文) | 'root' (带主帖) | 'parent' (带上级回复)
+const threadMode = ref<'none' | 'root' | 'parent'>('none');
+
+const hasRootPost = computed(() => Boolean(props.post?.contextThread?.rootPost));
+const hasParentPost = computed(() => {
+  const root = props.post?.contextThread?.rootPost;
+  const parent = props.post?.contextThread?.parentPost;
+  if (!parent) return false;
+  if (!root) return true;
+  return parent.id !== root.id && parent.content !== root.content;
+});
+
+const hasContextThread = computed(() => {
+  return hasRootPost.value || hasParentPost.value;
+});
+
+// 计算当前卡片渲染的有效 PostData 对象（动态合并上下文上级推文）
+const effectivePost = computed<PostData | null>(() => {
+  if (!props.post) return null;
+  if (threadMode.value === 'root' && props.post.contextThread?.rootPost) {
+    return {
+      ...props.post,
+      parentThreadPost: props.post.contextThread.rootPost,
+    };
+  }
+  if (threadMode.value === 'parent' && props.post.contextThread?.parentPost) {
+    return {
+      ...props.post,
+      parentThreadPost: props.post.contextThread.parentPost,
+    };
+  }
+  return props.post;
+});
 
 // 离屏渲染与视口引用
 const offscreenCardRef = ref<HTMLElement | null>(null);
@@ -134,7 +168,7 @@ const previewScale = 2.5;
 
 const triggerRender = () => {
   if (renderTimer) clearTimeout(renderTimer);
-  if (!props.post) return;
+  if (!effectivePost.value) return;
   isRendering.value = true;
   renderTimer = setTimeout(async () => {
     if (!offscreenCardRef.value) return;
@@ -189,7 +223,7 @@ const triggerRender = () => {
 };
 
 /**
- * 全图自适应（无论多长的长图，彻底解除最小缩放限制，100% 完整显示整张长图）
+ * 全图自适应（根据视口宽高自动等比适配，小图自动放大填满容器，长图完整呈现）
  */
 const resetToFit = () => {
   if (!viewportRef.value || !imageNaturalWidth.value || !imageNaturalHeight.value) return;
@@ -199,7 +233,8 @@ const resetToFit = () => {
   if (vWidth > 0 && vHeight > 0) {
     const scaleX = vWidth / imageNaturalWidth.value;
     const scaleY = vHeight / imageNaturalHeight.value;
-    const calculatedFit = Math.min(scaleX, scaleY, 1);
+    // 解除 1.0 的限制，允许自适应放大填满视口（最高至 2.5x），确保小图片也能饱满展示
+    const calculatedFit = Math.min(scaleX, scaleY, 2.5);
     fitScale.value = Math.max(0.01, Number(calculatedFit.toFixed(4)));
     scale.value = fitScale.value;
     translateX.value = 0;
@@ -567,10 +602,11 @@ watch(
     () => options.padding,
     () => options.fontScale,
     () => options.showWatermark,
+    () => threadMode.value,
     () => props.post,
   ],
   () => {
-    if (props.post) {
+    if (effectivePost.value) {
       triggerRender();
     }
   }
@@ -585,14 +621,14 @@ watch(
   >
     <!-- 离屏真实未缩放渲染源 (固定标准 720px 物理排版宽度) -->
     <div
-      v-if="post"
+      v-if="effectivePost"
       class="fixed -left-[9999px] top-0 pointer-events-none opacity-100 z-[-1] bg-transparent"
       style="background: transparent !important;"
       aria-hidden="true"
     >
       <div ref="offscreenCardRef" class="w-[720px] max-w-[720px] bg-transparent" style="background: transparent !important;">
         <ShareCard
-          :post="post"
+          :post="effectivePost"
           :options="options"
           :custom-themes="customThemes"
         />
@@ -840,9 +876,13 @@ watch(
             >
               <ZoomOut class="w-4 h-4" />
             </button>
-            <span class="px-1.5 font-mono text-zinc-600 dark:text-zinc-400 text-[11px] min-w-10 text-center">
+            <button
+              @click.stop="setOriginalSize"
+              class="px-1.5 py-0.5 font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-[11px] min-w-10 text-center cursor-pointer"
+              title="点击重置为 100% 原始比例"
+            >
               {{ Math.round(scale * 100) }}%
-            </span>
+            </button>
             <button
               @click.stop="zoomIn"
               class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
@@ -872,20 +912,12 @@ watch(
                 <Maximize2 class="w-4 h-4" />
               </button>
             </template>
-
-            <!-- 100% 原始大小 -->
-            <button
-              @click.stop="setOriginalSize"
-              class="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
-              title="100% 原始比例"
-            >
-              <RotateCcw class="w-4 h-4" />
-            </button>
           </div>
 
           <!-- 3. Loading 状态 -->
+          <!-- 3.1 初次加载 / 解析中（无已有预览图） -->
           <div
-            v-if="(!post || isExtracting || isRendering) && !previewDataUrl && viewMode === 'image'"
+            v-if="(!post || isExtracting || (!previewDataUrl && isRendering)) && viewMode === 'image'"
             class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/70 dark:bg-zinc-900/80 backdrop-blur-sm text-zinc-800 dark:text-zinc-200 gap-2.5 transition-opacity pointer-events-none"
           >
             <Loader2 class="w-7 h-7 animate-spin text-zinc-900 dark:text-white will-change-transform" />
@@ -894,9 +926,20 @@ watch(
             </span>
           </div>
 
+          <!-- 3.2 重新渲染中（已有旧图，切换主题/Thread 模式/边距等） -->
+          <div
+            v-if="isRendering && previewDataUrl && viewMode === 'image'"
+            class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
+          >
+            <div class="px-4 py-2 rounded-2xl bg-black/75 dark:bg-zinc-900/90 text-white backdrop-blur-md shadow-2xl border border-white/15 flex items-center gap-2.5 text-xs font-medium animate-in fade-in zoom-in-95 duration-150">
+              <Loader2 class="w-4 h-4 animate-spin text-white" />
+              <span>正在生成新图...</span>
+            </div>
+          </div>
+
           <!-- 4.1 DOM 真实结构调试渲染层 (Live DOM 模式，文本可划选，允许使用 DevTools Inspect 审查) -->
           <div
-            v-if="viewMode === 'dom' && post"
+            v-if="viewMode === 'dom' && effectivePost"
             class="w-full h-full overflow-y-auto overflow-x-hidden p-6 sm:p-10 flex justify-center items-start select-text cursor-auto z-0"
           >
             <div
@@ -907,7 +950,7 @@ watch(
               }"
             >
               <ShareCard
-                :post="post"
+                :post="effectivePost"
                 :options="options"
                 :custom-themes="customThemes"
               />
@@ -917,7 +960,8 @@ watch(
           <!-- 4.2 纯图片渲染层 (Image 预览图模式) -->
           <div
             v-else-if="viewMode === 'image' && previewDataUrl"
-            class="shrink-0 pointer-events-none select-none z-0"
+            class="shrink-0 pointer-events-none select-none z-0 transition-opacity duration-150"
+            :class="isRendering ? 'opacity-40' : 'opacity-100'"
             :style="{
               transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
               transformOrigin: 'center center',
@@ -937,7 +981,52 @@ watch(
       </div>
 
       <!-- Footer: 极简纯净操作栏 -->
-      <div class="px-6 py-3 bg-white dark:bg-[#18181b] border-t border-zinc-100 dark:border-white/10 flex items-center justify-end shrink-0">
+      <div class="px-6 py-3 bg-white dark:bg-[#18181b] border-t border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0">
+        <!-- 左侧：推文上下文 Thread 选项（仅在存在上下文推文时呈现） -->
+        <div>
+          <div v-if="hasContextThread" class="flex items-center gap-2">
+            <!-- 一级评论：仅存在主帖（无独立的合法上级回复） -->
+            <button
+              v-if="hasRootPost && !hasParentPost"
+              type="button"
+              @click="threadMode = threadMode === 'root' ? 'none' : 'root'"
+              class="px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer select-none"
+              :class="[
+                threadMode === 'root'
+                  ? 'border-zinc-900 dark:border-white/30 bg-zinc-900/5 dark:bg-white/10 text-zinc-900 dark:text-white font-semibold shadow-xs'
+                  : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 bg-white dark:bg-zinc-900/60'
+              ]"
+              title="带上该评论对应的主帖内容生成连线对话卡片"
+            >
+              <MessageSquareQuote class="w-3.5 h-3.5" />
+              <span>包含主帖</span>
+            </button>
+
+            <!-- 多级嵌套评论：同时存在主帖与经过验证的有效上级回复 -->
+            <div v-else-if="hasRootPost && hasParentPost" class="flex items-center bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-xl border border-zinc-200/60 dark:border-white/5 text-xs">
+              <button
+                type="button"
+                @click="threadMode = threadMode === 'root' ? 'none' : 'root'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer select-none"
+                :class="threadMode === 'root' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-semibold' : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+                title="连线带上顶层主帖内容 (点击可切换/取消)"
+              >
+                包含主帖
+              </button>
+              <button
+                type="button"
+                @click="threadMode = threadMode === 'parent' ? 'none' : 'parent'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer select-none"
+                :class="threadMode === 'parent' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-semibold' : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+                title="连线带上上一条被回复的评论内容 (点击可切换/取消)"
+              >
+                包含上级回复
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧：操作按钮组 -->
         <div class="flex items-center gap-2.5">
           <!-- 复制链接按钮 -->
           <button

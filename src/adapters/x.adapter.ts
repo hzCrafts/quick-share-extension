@@ -124,7 +124,7 @@ export class XAdapter extends BaseAdapter {
     }
   }
 
-  async extract(tweet?: HTMLElement, selection?: ExcerptSelection): Promise<PostData | null> {
+  async extract(tweet?: HTMLElement, selection?: ExcerptSelection, skipContext = false): Promise<PostData | null> {
     if (!tweet) return null;
 
     try {
@@ -305,6 +305,12 @@ export class XAdapter extends BaseAdapter {
         if (list.length > 0) mediaList = list;
       }
 
+      // 3. 提取推文上下文对话链 (上级回复 / 主帖)
+      let contextThread = undefined;
+      if (!skipContext && !selection) {
+        contextThread = await this.findContextThread(tweet);
+      }
+
       return {
         id: cleanUrl,
         platform: 'x',
@@ -320,10 +326,260 @@ export class XAdapter extends BaseAdapter {
         excerptBeforeHtml,
         excerptAfterHtml,
         media: mediaList,
+        contextThread,
       };
     } catch (err) {
       console.error('[QuickShare] Failed to extract tweet data:', err);
       return null;
+    }
+  }
+
+  /**
+   * 从推文节点提取其唯一的推文 ID (Tweet ID)
+   */
+  extractTweetId(tweet: HTMLElement): string | null {
+    const timeLink = tweet.querySelector('time')?.closest<HTMLAnchorElement>('a');
+    const href = timeLink?.getAttribute('href') || timeLink?.href || '';
+    const match = href.match(/\/status\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * 获取当前页面 URL 中的焦点/主推文 ID (Focal Tweet ID)
+   */
+  getFocalTweetId(): string | null {
+    if (typeof window === 'undefined' || !window.location) return null;
+    const match = window.location.pathname.match(/\/status\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * 提取推文的作者 Handle (如 "@username")
+   */
+  extractAuthorHandle(tweet: HTMLElement): string {
+    const userNameEl = tweet.querySelector('div[data-testid="User-Name"]');
+    if (userNameEl) {
+      const links = userNameEl.querySelectorAll('a');
+      if (links.length > 0) {
+        const handleCandidate = links[1]?.textContent?.trim() || links[0]?.getAttribute('href')?.replace('/', '@') || '';
+        return handleCandidate.startsWith('@') ? handleCandidate : `@${handleCandidate}`;
+      }
+      const parts = userNameEl.textContent?.split('@') || [];
+      if (parts[1]) {
+        return '@' + parts[1].split('·')[0]?.trim();
+      }
+    }
+    return '';
+  }
+
+  /**
+   * 提取推文正文上方的 "Replying to @xxx" 或正文开头的被回复目标 Handles
+   */
+  extractRepliedHandles(tweet: HTMLElement): string[] {
+    const handles: string[] = [];
+    const userNameEl = tweet.querySelector('div[data-testid="User-Name"]');
+
+    // 1. 扫描推文内所有用户链接 (排除操作栏和头像)
+    const allLinks = Array.from(tweet.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'));
+    for (const a of allLinks) {
+      if (a.closest('div[role="group"]') || a.closest('div[data-testid="Tweet-User-Avatar"]')) continue;
+      if (userNameEl && userNameEl.contains(a)) continue;
+
+      const text = a.textContent?.trim() || '';
+      const href = a.getAttribute('href') || '';
+      if (text.startsWith('@')) {
+        const clean = text.toLowerCase();
+        if (!handles.includes(clean)) {
+          handles.push(clean);
+        }
+      } else if (href.startsWith('/') && !href.includes('/status/') && !href.includes('/i/')) {
+        const clean = `@${href.replace(/^\//, '').split('/')[0]}`.toLowerCase();
+        if (clean !== '@' && !handles.includes(clean)) {
+          handles.push(clean);
+        }
+      }
+    }
+
+    // 2. 扫描推文正文文本前 60 个字符中的 @ 提及
+    const tweetTextEl = tweet.querySelector('div[data-testid="tweetText"]');
+    if (tweetTextEl) {
+      const textHead = tweetTextEl.textContent?.slice(0, 80) || '';
+      const matches = textHead.match(/@[a-zA-Z0-9_]+/g);
+      if (matches) {
+        for (const m of matches) {
+          const clean = m.toLowerCase();
+          if (!handles.includes(clean)) {
+            handles.push(clean);
+          }
+        }
+      }
+    }
+
+    return handles;
+  }
+
+  /**
+   * 检查推文节点是否存在垂直 Thread 连接线 (视觉连线)
+   */
+  hasThreadConnector(tweet: HTMLElement, position: 'top' | 'bottom'): boolean {
+    const avatarCol = tweet.querySelector('div[data-testid="Tweet-User-Avatar"]')?.parentElement;
+    if (!avatarCol) return false;
+
+    const lineCandidates = avatarCol.querySelectorAll<HTMLElement>('div');
+    for (const el of lineCandidates) {
+      if (el.querySelector('img')) continue;
+      const style = typeof window !== 'undefined' && window.getComputedStyle ? window.getComputedStyle(el) : null;
+      if (!style) continue;
+      const width = parseFloat(style.width);
+      const height = parseFloat(style.height);
+      const bg = style.backgroundColor;
+      if (width >= 1 && width <= 6 && height >= 6 && bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 检查两个推文是否处于同一个 DOM Conversation 容器 / cellInnerDiv 内
+   */
+  isSameConversationContainer(tweetA: HTMLElement, tweetB: HTMLElement): boolean {
+    const cellA = tweetA.closest('div[data-testid="cellInnerDiv"], [data-testid="conversationthread"]');
+    const cellB = tweetB.closest('div[data-testid="cellInnerDiv"], [data-testid="conversationthread"]');
+    if (cellA && cellB && cellA === cellB) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 检查推文是否为赞助/推广广告推文 (Promoted / Ad Tweet)
+   */
+  isPromotedTweet(tweet: HTMLElement): boolean {
+    // 1. 检查推文是否缺少常规 time 链接（广告推文通常没有标准的推文发布时间 /status/ 链接）
+    const timeLink = tweet.querySelector('time')?.closest<HTMLAnchorElement>('a');
+    const href = timeLink?.getAttribute('href') || timeLink?.href || '';
+    if (!timeLink || !href.includes('/status/')) {
+      return true;
+    }
+
+    // 2. 检查是否有独立的推广/广告标记
+    const badges = tweet.querySelectorAll('span, div');
+    for (const el of badges) {
+      if (el.children.length === 0) {
+        const text = el.textContent?.trim() || '';
+        if (text === 'Ad' || text === 'Promoted' || text === '推广' || text === '赞助' || text === '广告') {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 严格验证 candidate 上级推文是否为当前推文真实的直接父回复
+   */
+  private isValidParentTweet(currentTweet: HTMLElement, parentCandidate: HTMLElement, rootTweet: HTMLElement): boolean {
+    if (this.isPromotedTweet(parentCandidate)) return false;
+
+    const parentTweetId = this.extractTweetId(parentCandidate);
+    const rootTweetId = this.extractTweetId(rootTweet);
+    if (!parentTweetId || (rootTweetId && parentTweetId === rootTweetId)) {
+      return false;
+    }
+
+    const parentHandle = this.extractAuthorHandle(parentCandidate).toLowerCase();
+    const rootHandle = this.extractAuthorHandle(rootTweet).toLowerCase();
+    const repliedHandles = this.extractRepliedHandles(currentTweet);
+
+    // 1. 如果当前推文明确包含指向 parentHandle 的回复或提及标记
+    if (parentHandle && repliedHandles.some((h) => h === parentHandle || h === parentHandle.replace(/^@/, ''))) {
+      if (parentHandle === rootHandle) {
+        // 同作者多条回复时需确认连线
+        return this.hasThreadConnector(currentTweet, 'top') || this.hasThreadConnector(parentCandidate, 'bottom') || this.isSameConversationContainer(currentTweet, parentCandidate);
+      }
+      return true;
+    }
+
+    // 2. 检查 DOM 容器与 Thread 物理连线
+    if (this.isSameConversationContainer(currentTweet, parentCandidate)) {
+      return true;
+    }
+    if (this.hasThreadConnector(currentTweet, 'top') || this.hasThreadConnector(parentCandidate, 'bottom')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 向上追溯当前推文的上级推文 (Parent Tweet) 与主帖 (Root Tweet)
+   */
+  private async findContextThread(tweet: HTMLElement): Promise<{ rootPost?: PostData; parentPost?: PostData } | undefined> {
+    try {
+      if (this.isPromotedTweet(tweet)) return undefined;
+
+      const currentTweetId = this.extractTweetId(tweet);
+      const focalTweetId = this.getFocalTweetId();
+
+      // 1. 如果当前被点击的推文就是页面主帖（Focal Tweet），没有任何向上上下文，直接返回 undefined
+      if (focalTweetId && currentTweetId && currentTweetId === focalTweetId) {
+        return undefined;
+      }
+
+      // 过滤掉所有广告推文
+      const allTweets = Array.from(document.querySelectorAll<HTMLElement>('article[data-testid="tweet"]'))
+        .filter((t) => !this.isPromotedTweet(t));
+
+      const currentIndex = allTweets.indexOf(tweet);
+      if (currentIndex < 0) return undefined;
+
+      // 2. 精准定位真实主帖 (Root Tweet)：在 DOM 列表中查找匹配 focalTweetId 的推文
+      let rootTweet: HTMLElement | null = null;
+      if (focalTweetId) {
+        rootTweet = allTweets.find((t) => this.extractTweetId(t) === focalTweetId) || null;
+      } else if (currentIndex > 0) {
+        rootTweet = allTweets[0];
+      }
+
+      // 如果当前推文自身就是 rootTweet，直接返回 undefined
+      if (rootTweet && rootTweet === tweet) {
+        return undefined;
+      }
+
+      // 3. 寻找并严格验证直接父级回复 (Parent Tweet)
+      let parentCandidate: HTMLElement | null = null;
+      if (currentIndex > 0) {
+        const prev = allTweets[currentIndex - 1];
+        if (prev !== tweet) {
+          parentCandidate = prev;
+        }
+      }
+
+      const isSameAsRoot = Boolean(rootTweet && parentCandidate && parentCandidate === rootTweet);
+      const isParentValid = Boolean(
+        parentCandidate &&
+        !isSameAsRoot &&
+        rootTweet &&
+        this.isValidParentTweet(tweet, parentCandidate, rootTweet)
+      );
+
+      // 异步提取上级与根推文 (使用 skipContext = true 避免循环递归)
+      const [parentPost, rootPost] = await Promise.all([
+        isParentValid && parentCandidate ? this.extract(parentCandidate, undefined, true) : Promise.resolve(null),
+        rootTweet ? this.extract(rootTweet, undefined, true) : Promise.resolve(null),
+      ]);
+
+      if (!parentPost && !rootPost) return undefined;
+
+      return {
+        parentPost: parentPost || undefined,
+        rootPost: rootPost || undefined,
+      };
+    } catch (e) {
+      console.warn('[QuickShare] Failed to find context thread:', e);
+      return undefined;
     }
   }
 

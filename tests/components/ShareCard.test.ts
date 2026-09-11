@@ -150,4 +150,51 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
       expect(imgs[1].attributes('src')).toBe('https://example.com/img2.png');
     });
   });
+
+  describe('5. Thread 对话链模式渲染', () => {
+    it('当存在 parentThreadPost 时，正确渲染主帖与回复两级结构及连线容器', () => {
+      const threadPost: PostData = {
+        id: 'https://x.com/user2/status/2',
+        platform: 'x',
+        url: 'https://x.com/user2/status/2',
+        author: {
+          name: '回复作者',
+          handle: '@reply_user',
+          avatarUrl: 'https://example.com/avatar2.jpg',
+        },
+        content: '这是当前回复的内容',
+        parentThreadPost: {
+          id: 'https://x.com/user1/status/1',
+          platform: 'x',
+          url: 'https://x.com/user1/status/1',
+          author: {
+            name: '主帖作者',
+            handle: '@root_user',
+            avatarUrl: 'https://example.com/avatar1.jpg',
+          },
+          content: '这是主帖推文内容',
+        },
+      };
+
+      const wrapper = mount(ShareCard, {
+        props: {
+          post: threadPost,
+          options: defaultOptions,
+        },
+      });
+
+      // 验证 Thread 对话链专属结构与垂直连线
+      expect(wrapper.find('.qs-thread-container').exists()).toBe(true);
+      expect(wrapper.find('.qs-thread-connector-line').exists()).toBe(true);
+
+      // 验证主帖与回复两者的作者信息与内容均存在于卡片中
+      expect(wrapper.text()).toContain('主帖作者');
+      expect(wrapper.text()).toContain('@root_user');
+      expect(wrapper.text()).toContain('这是主帖推文内容');
+
+      expect(wrapper.text()).toContain('回复作者');
+      expect(wrapper.text()).toContain('@reply_user');
+      expect(wrapper.text()).toContain('这是当前回复的内容');
+    });
+  });
 });
