@@ -1,3 +1,4 @@
+import { extractPostDate } from '@/utils/post-date';
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData } from '@/types/post';
 import { cleanShareUrl } from '@/utils/url';
@@ -291,6 +292,7 @@ export class ZhihuAdapter extends BaseAdapter {
       return {
         id: postUrl,
         platform: 'zhihu',
+        createdAt: extractPostDate(item),
         url: postUrl,
         title: title || undefined,
         author: {
@@ -343,6 +345,7 @@ export class ZhihuAdapter extends BaseAdapter {
       return {
         id: postUrl,
         platform: 'zhihu',
+        createdAt: extractPostDate(root),
         url: postUrl,
         title,
         author: {

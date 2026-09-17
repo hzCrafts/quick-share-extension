@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatPostDate } from '@/utils/post-date';
 import type { PostData } from '@/types/post';
 import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
 import { getThemeById } from '@/utils/theme-engine';
@@ -248,15 +249,11 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           </div>
 
           <div class="qs-author-meta">
-            <div class="qs-author-name">
-              {{ post.author.name }}
+            <div class="qs-author-line">
+              <span class="qs-author-name">{{ post.author.name }}</span>
+              <span v-if="post.author.handle" class="qs-author-handle">{{ post.author.handle }}</span>
             </div>
-            <div
-              v-if="post.author.handle"
-              class="qs-author-handle"
-            >
-              {{ post.author.handle }}
-            </div>
+            <time v-if="formatPostDate(post.createdAt)" class="qs-post-date" :datetime="post.createdAt">{{ formatPostDate(post.createdAt) }}</time>
           </div>
         </div>
 
@@ -319,12 +316,11 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
             <div class="qs-thread-right-col">
               <div class="qs-author-meta">
-                <div class="qs-author-name">
-                  {{ post.parentThreadPost.author.name }}
+                <div class="qs-author-line">
+                  <span class="qs-author-name">{{ post.parentThreadPost.author.name }}</span>
+                  <span v-if="post.parentThreadPost.author.handle" class="qs-author-handle">{{ post.parentThreadPost.author.handle }}</span>
                 </div>
-                <div v-if="post.parentThreadPost.author.handle" class="qs-author-handle">
-                  {{ post.parentThreadPost.author.handle }}
-                </div>
+                <time v-if="formatPostDate(post.parentThreadPost.createdAt)" class="qs-post-date" :datetime="post.parentThreadPost.createdAt">{{ formatPostDate(post.parentThreadPost.createdAt) }}</time>
               </div>
 
               <!-- 上级推文正文 -->
@@ -394,12 +390,11 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
             <div class="qs-thread-right-col">
               <div class="qs-author-meta">
-                <div class="qs-author-name">
-                  {{ post.author.name }}
+                <div class="qs-author-line">
+                  <span class="qs-author-name">{{ post.author.name }}</span>
+                  <span v-if="post.author.handle" class="qs-author-handle">{{ post.author.handle }}</span>
                 </div>
-                <div v-if="post.author.handle" class="qs-author-handle">
-                  {{ post.author.handle }}
-                </div>
+                <time v-if="formatPostDate(post.createdAt)" class="qs-post-date" :datetime="post.createdAt">{{ formatPostDate(post.createdAt) }}</time>
               </div>
 
               <!-- 评论正文 -->
@@ -837,6 +832,23 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   text-overflow: ellipsis;
   margin-top: 2px;
   opacity: 0.85;
+}
+
+.qs-author-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.qs-author-line .qs-author-handle { margin-top: 0; }
+.qs-post-date {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--qs-text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 平台 Badge */
