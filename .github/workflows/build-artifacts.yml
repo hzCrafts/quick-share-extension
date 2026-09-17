@@ -1,4 +1,4 @@
-name: Build & Bundle Extension
+name: Build & Release Extension
 
 on:
   push:
@@ -6,14 +6,19 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
-    name: Build & Package Artifacts
+  release:
+    name: Build, Package & Release
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -38,9 +43,27 @@ jobs:
           pnpm zip
           pnpm zip:firefox
 
+      - name: Generate release tag
+        id: tag
+        run: |
+          TAG_NAME="v$(date +'%Y.%m.%d-%H%M%S')"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@v4
         with:
           name: quick-share-extension-zips
           path: .output/*.zip
           retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: Release ${{ steps.tag.outputs.tag_name }}
+          files: .output/*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
