@@ -1,3 +1,4 @@
+import { extractPostDate } from '@/utils/post-date';
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData } from '@/types/post';
 import { cleanShareUrl } from '@/utils/url';
@@ -248,6 +249,7 @@ export class ChatGPTAdapter extends BaseAdapter {
       return {
         id: postUrl,
         platform: 'chatgpt',
+        createdAt: extractPostDate(item),
         url: postUrl,
         title: promptData.text || undefined,
         promptHtml: promptData.html || undefined,

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatPostDate } from '@/utils/post-date';
 import type { PostData } from '@/types/post';
 import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
 import { getThemeById } from '@/utils/theme-engine';
+import { prepareExcerpt } from '@/utils/excerpt';
 
 const props = defineProps<{
   post: PostData;
@@ -13,6 +15,15 @@ const props = defineProps<{
 const currentTheme = computed<QuickShareTheme>(() => {
   return getThemeById(props.options.themeId, props.customThemes);
 });
+
+const excerpt = computed(() => prepareExcerpt(
+  props.post.contentHtml || '',
+  props.post.excerptBeforeHtml || '',
+  props.post.excerptAfterHtml || ''
+));
+const excerptContent = computed(() => props.post.isExcerpt ? excerpt.value.content : props.post.contentHtml);
+const excerptBefore = computed(() => excerpt.value.before);
+const excerptAfter = computed(() => excerpt.value.after);
 
 // 计算卡片专属 CSS 变量字典
 const themeCssVars = computed(() => {
@@ -181,9 +192,10 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 </script>
 
 <template>
-  <!-- 卡片外层包装容器 (标准 720px 物理排版宽度，外层 100% 直角) -->
+  <!-- 卡片外层包装容器 (标准 640px 物理排版宽度，外层 100% 直角) -->
   <div
     class="qs-card-wrapper"
+    :data-theme="currentTheme.id"
     :class="{ 'has-outer-padding': options.showOuterPadding }"
     :style="themeCssVars"
   >
@@ -237,15 +249,11 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           </div>
 
           <div class="qs-author-meta">
-            <div class="qs-author-name">
-              {{ post.author.name }}
+            <div class="qs-author-line">
+              <span class="qs-author-name">{{ post.author.name }}</span>
+              <span v-if="post.author.handle" class="qs-author-handle">{{ post.author.handle }}</span>
             </div>
-            <div
-              v-if="post.author.handle"
-              class="qs-author-handle"
-            >
-              {{ post.author.handle }}
-            </div>
+            <time v-if="formatPostDate(post.createdAt)" class="qs-post-date" :datetime="post.createdAt">{{ formatPostDate(post.createdAt) }}</time>
           </div>
         </div>
 
@@ -253,17 +261,16 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         <div
           v-if="!isAiPlatform"
           class="qs-platform-badge"
-          :style="platformConfig.style"
+          :title="platformConfig.name"
         >
           <img
             v-if="platformConfig.faviconUrl"
             :src="platformConfig.faviconUrl"
-            alt="icon"
+            :alt="platformConfig.name"
             class="qs-platform-icon"
             crossorigin="anonymous"
             @error="(e: any) => e.target.style.display = 'none'"
           />
-          <span style="flex-shrink: 0;">{{ platformConfig.name }}</span>
         </div>
       </div>
 
@@ -272,17 +279,16 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
       <div v-if="post.parentThreadPost" class="qs-thread-wrapper">
         <!-- 顶栏平台 Badge -->
         <div v-if="!isAiPlatform" class="qs-thread-top-bar">
-          <div class="qs-platform-badge" :style="platformConfig.style">
+          <div class="qs-platform-badge" :title="platformConfig.name">
             <img
               v-if="platformConfig.faviconUrl"
               :src="platformConfig.faviconUrl"
-              alt="icon"
+              :alt="platformConfig.name"
               class="qs-platform-icon"
               crossorigin="anonymous"
               @error="(e: any) => e.target.style.display = 'none'"
             />
-            <span style="flex-shrink: 0;">{{ platformConfig.name }}</span>
-          </div>
+            </div>
         </div>
 
         <div class="qs-thread-container">
@@ -310,12 +316,11 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
             <div class="qs-thread-right-col">
               <div class="qs-author-meta">
-                <div class="qs-author-name">
-                  {{ post.parentThreadPost.author.name }}
+                <div class="qs-author-line">
+                  <span class="qs-author-name">{{ post.parentThreadPost.author.name }}</span>
+                  <span v-if="post.parentThreadPost.author.handle" class="qs-author-handle">{{ post.parentThreadPost.author.handle }}</span>
                 </div>
-                <div v-if="post.parentThreadPost.author.handle" class="qs-author-handle">
-                  {{ post.parentThreadPost.author.handle }}
-                </div>
+                <time v-if="formatPostDate(post.parentThreadPost.createdAt)" class="qs-post-date" :datetime="post.parentThreadPost.createdAt">{{ formatPostDate(post.parentThreadPost.createdAt) }}</time>
               </div>
 
               <!-- 上级推文正文 -->
@@ -385,12 +390,11 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
             <div class="qs-thread-right-col">
               <div class="qs-author-meta">
-                <div class="qs-author-name">
-                  {{ post.author.name }}
+                <div class="qs-author-line">
+                  <span class="qs-author-name">{{ post.author.name }}</span>
+                  <span v-if="post.author.handle" class="qs-author-handle">{{ post.author.handle }}</span>
                 </div>
-                <div v-if="post.author.handle" class="qs-author-handle">
-                  {{ post.author.handle }}
-                </div>
+                <time v-if="formatPostDate(post.createdAt)" class="qs-post-date" :datetime="post.createdAt">{{ formatPostDate(post.createdAt) }}</time>
               </div>
 
               <!-- 评论正文 -->
@@ -402,7 +406,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
                     fontSize: `${15 * options.fontScale}px`,
                     lineHeight: 1.7,
                   }"
-                  v-html="post.contentHtml"
+                  v-html="excerptContent"
                 />
                 <p
                   v-else
@@ -483,14 +487,13 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           <div v-if="post.isExcerpt" class="qs-excerpt-wrapper">
             <!-- 上方前置段落（垂直顶部淡出渐显 + 微模糊） -->
             <div
-              v-if="post.excerptBeforeHtml"
+              v-if="excerptBefore"
               class="quick-share-excerpt-top-fade quick-share-rich-body"
               :style="{
                 fontSize: `${15 * options.fontScale}px`,
                 lineHeight: 1.7,
               }"
-              v-html="post.excerptBeforeHtml"
-            />
+            ><div v-html="excerptBefore" /></div>
 
             <!-- 选中的核心段落（完整保留原生 DOM 格式与自然字号，内含文字水平渐显渐隐） -->
             <div
@@ -499,19 +502,21 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
                 fontSize: `${15 * options.fontScale}px`,
                 lineHeight: 1.7,
               }"
-              v-html="post.contentHtml || post.content"
+              v-if="excerptContent"
+              v-html="excerptContent"
             />
+
+            <p v-else class="qs-plain-content" :style="{ fontSize: `${15 * options.fontScale}px` }">{{ post.content }}</p>
 
             <!-- 下方后置段落（垂直底部淡出渐隐 + 微模糊） -->
             <div
-              v-if="post.excerptAfterHtml"
+              v-if="excerptAfter"
               class="quick-share-excerpt-bottom-fade quick-share-rich-body"
               :style="{
                 fontSize: `${15 * options.fontScale}px`,
                 lineHeight: 1.7,
               }"
-              v-html="post.excerptAfterHtml"
-            />
+            ><div v-html="excerptAfter" /></div>
           </div>
 
           <!-- 2. 全文分享模式 -->
@@ -524,7 +529,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
                 fontSize: `${15 * options.fontScale}px`,
                 lineHeight: 1.7,
               }"
-              v-html="post.contentHtml"
+              v-html="excerptContent"
             />
 
             <!-- 纯文本模式 -->
@@ -598,13 +603,13 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 </template>
 
 <style scoped>
-/* 卡片外层包装容器 (标准 720px 物理排版宽度，外层 100% 直角) */
+/* 卡片外层包装容器 (标准 640px 物理排版宽度，外层 100% 直角) */
 .qs-card-wrapper {
   position: relative;
   box-sizing: border-box;
   user-select: text;
-  width: 720px;
-  max-width: 720px;
+  width: 640px;
+  max-width: 640px;
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -620,6 +625,100 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   background: var(--qs-outer-bg);
   padding: 48px;
   border-radius: 0px !important;
+}
+
+/* Raycast Wrapped 材质仅作用于曜石主题，不改变正文结构。 */
+.qs-card-wrapper[data-theme='raycast-dark'].has-outer-padding {
+  padding: 36px;
+}
+.qs-card-wrapper[data-theme='raycast-dark'].has-outer-padding::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .09;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch' seed='12'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23grain)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-card {
+  padding: 28px;
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-card::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #b74b08 22%, #ffc35c 50%, #b74b08 78%, transparent);
+  box-shadow: 0 -2px 18px 2px #ed79042b;
+  pointer-events: none;
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-card-header {
+  padding-bottom: 22px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, .09);
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-avatar-fallback {
+  background: linear-gradient(145deg, #2d2926, #100f0f);
+  border: 1px solid #ffffff20;
+  box-shadow: inset 0 1px 1px #ffffff12;
+  color: #f1e4d6;
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-author-handle {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-card-footer {
+  border-top: 1px solid rgba(255, 255, 255, .09);
+  padding-top: 18px;
+}
+
+.qs-card-wrapper[data-theme='liquid-glass'].has-outer-padding,
+.qs-card-wrapper[data-theme='craft-editorial'].has-outer-padding {
+  padding: 32px;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card {
+  padding: 30px;
+  border-radius: 22px;
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card {
+  padding: 30px;
+  border-radius: 14px;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card-header,
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
+  padding-bottom: 22px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(125, 137, 153, .2);
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  border-bottom-color: #ded8ce;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card-footer,
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-footer {
+  padding-top: 20px;
+  border-top: 1px solid rgba(125, 137, 153, .22);
+}
+.qs-card-wrapper[data-theme='craft-editorial']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: .035;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch' seed='12'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23grain)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-footer-url::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  margin-right: 9px;
+  background: #bd7d70;
 }
 
 /* 环境空间弥散光核容器 */
@@ -735,22 +834,34 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   opacity: 0.85;
 }
 
+.qs-author-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.qs-author-line .qs-author-handle { margin-top: 0; }
+.qs-post-date {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--qs-text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 平台 Badge */
 .qs-platform-badge {
   flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.025em;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
 }
 
 .qs-platform-icon {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 
@@ -826,13 +937,13 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 }
 
 .quick-share-excerpt-top-fade {
-  height: 64px;
-  max-height: 64px;
+  max-height: 3.4em;
+  white-space: pre-line;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  opacity: 0.35;
+  opacity: 0.32;
   filter: blur(0.35px);
   position: relative;
   mask-image: linear-gradient(
@@ -853,8 +964,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 }
 
 .quick-share-excerpt-bottom-fade {
-  height: 64px;
-  max-height: 64px;
+  max-height: 3.4em;
+  white-space: pre-line;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -877,6 +988,13 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin-top: 6px;
   user-select: none;
   pointer-events: none;
+}
+
+.quick-share-excerpt-top-fade > :deep(*),
+.quick-share-excerpt-bottom-fade > :deep(*) {
+  flex-shrink: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* 段落内部：前置文字水平淡入渐显与微模糊 */

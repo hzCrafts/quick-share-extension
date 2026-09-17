@@ -314,6 +314,7 @@ export class XAdapter extends BaseAdapter {
       return {
         id: cleanUrl,
         platform: 'x',
+        createdAt: timeEl?.getAttribute('datetime') || undefined,
         url: cleanUrl,
         author: {
           name,
