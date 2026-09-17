@@ -116,28 +116,28 @@ export interface CardRenderOptions {
  * 5 款全新打造的顶级旗舰预设主题
  */
 export const BUILTIN_THEMES: Record<BuiltinCardThemeId, QuickShareTheme> = {
-  // 1. Raycast 曜石微光 (Tactical Dark & Bento Glow)
+  // 1. Raycast Wrapped：深黑面板、琥珀边缘光与精细分隔线
   'raycast-dark': {
     version: 1,
     id: 'raycast-dark',
-    name: 'Raycast 曜石 (Bento Glow)',
+    name: 'Raycast 曜石',
     author: 'QuickShare',
-    description: '冷曜石深黑微渐变 + 底部琥珀破晓光晕 + 1px 精密内发光微边框',
-    previewColor: 'linear-gradient(135deg, #09090b 0%, #18181b 60%, #ea580c 100%)',
+    description: '深黑面板、琥珀辉光、细腻颗粒与精密发光边缘',
+    previewColor: 'radial-gradient(ellipse at 50% 115%, #ffb21c 0%, #9c3306 25%, #0a0807 65%)',
     ambient: {
       isDark: true,
-      outerBackground: 'linear-gradient(180deg, #09090b 0%, #0c0a09 65%, #18120c 100%)',
+      outerBackground: 'radial-gradient(ellipse at 0% 0%, #9b4c09 0%, transparent 42%), radial-gradient(ellipse at 100% 100%, #773006 0%, transparent 42%), #100a06',
       glows: [
         {
-          color: 'rgba(249, 115, 22, 0.42)', // 暖琥珀破晓光晕
-          position: '50% 105%',
+          color: 'rgba(255, 154, 24, 0.8)', // 暖琥珀破晓光晕
+          position: '45% 104%',
           size: '540px 240px',
-          blur: '85px',
+          blur: '35px',
           opacity: 0.9,
         },
         {
-          color: 'rgba(234, 88, 12, 0.20)',
-          position: '50% 90%',
+          color: 'rgba(233, 83, 8, 0.4)',
+          position: '95% 10%',
           size: '360px 160px',
           blur: '50px',
           opacity: 0.8,
@@ -145,25 +145,25 @@ export const BUILTIN_THEMES: Record<BuiltinCardThemeId, QuickShareTheme> = {
       ],
     },
     card: {
-      background: 'linear-gradient(180deg, rgba(24, 24, 27, 0.92) 0%, rgba(15, 15, 18, 0.96) 100%)',
-      backdropFilter: 'blur(20px)',
-      border: '1px solid rgba(255, 255, 255, 0.10)',
+      background: 'radial-gradient(ellipse 75% 130px at 50% 110%, rgba(244, 111, 9, 0.26), transparent 85%), linear-gradient(155deg, #101011 0%, #060607 55%, #0b0806 100%)',
+      backdropFilter: 'none',
+      border: '1px solid rgba(255, 255, 255, 0.14)',
       borderHighlight: 'linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.02) 100%)',
-      shadow: '0 36px 80px -16px rgba(0, 0, 0, 0.95), 0 16px 36px -8px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.18)',
-      innerGlow: 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.40)',
+      shadow: '0 20px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.7)',
+      innerGlow: 'inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 0 rgba(255, 149, 34, 0.3)',
     },
     typography: {
       fontFamily: 'sans',
-      textPrimary: '#f4f4f5',
-      textSecondary: '#a1a1aa',
+      textPrimary: '#ededee',
+      textSecondary: '#929093',
       textMuted: '#71717a',
     },
     components: {
       platformBadge: {
-        background: 'rgba(255, 255, 255, 0.08)',
+        background: 'rgba(255, 255, 255, 0.03)',
         color: '#f4f4f5',
         border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '9999px',
+        borderRadius: '8px',
       },
       promptCard: {
         background: 'linear-gradient(180deg, rgba(39, 39, 42, 0.70) 0%, rgba(24, 24, 27, 0.80) 100%)',

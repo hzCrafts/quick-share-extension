@@ -121,8 +121,8 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
 
       expect(wrapper.find('.spotlight-focus').exists()).toBe(true);
       expect(wrapper.find('.spotlight-focus').text()).toBe('核心金句内容');
-      expect(wrapper.find('.fade-in-blur').exists()).toBe(true);
-      expect(wrapper.find('.fade-out-blur').exists()).toBe(true);
+      expect(wrapper.get('.quick-share-excerpt-top-fade').text()).toBe('前文：');
+      expect(wrapper.get('.quick-share-excerpt-bottom-fade').text()).toBe('后文...');
     });
   });
 

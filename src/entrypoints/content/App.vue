@@ -7,15 +7,12 @@ import {
   getUiThemeMode, 
   onStorageChanged, 
   KEY_UI_THEME_MODE, 
-  getSidebarCollapsed,
-  KEY_SIDEBAR_COLLAPSED,
   type UiThemeMode 
 } from '@/utils/storage';
 
 const currentPost = ref<PostData | null>(null);
 const isModalVisible = ref(false);
 const isExtracting = ref(false);
-const isSidebarCollapsed = ref(false);
 
 // 动态同步 Shadow DOM Host 容器的 pointer-events
 // 弹窗开启时捕获整屏事件，避免浏览器在宿主页面与扩展弹窗之间冲突跳动光标；关闭时穿透宿主页面
@@ -45,12 +42,8 @@ const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
 };
 
 onMounted(async () => {
-  const [loadedUiMode, loadedSidebarCollapsed] = await Promise.all([
-    getUiThemeMode(),
-    getSidebarCollapsed(),
-  ]);
+  const loadedUiMode = await getUiThemeMode();
   uiMode.value = loadedUiMode;
-  isSidebarCollapsed.value = loadedSidebarCollapsed;
 
   if (typeof window !== 'undefined' && window.matchMedia) {
     mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -61,9 +54,6 @@ onMounted(async () => {
   unsubscribeStorage = onStorageChanged((changes) => {
     if (changes[KEY_UI_THEME_MODE]) {
       uiMode.value = changes[KEY_UI_THEME_MODE].newValue || 'system';
-    }
-    if (changes[KEY_SIDEBAR_COLLAPSED]) {
-      isSidebarCollapsed.value = changes[KEY_SIDEBAR_COLLAPSED].newValue ?? false;
     }
   });
 });
@@ -76,13 +66,9 @@ onUnmounted(() => {
 });
 
 const openShareModal = async (postOrPromise: PostData | Promise<PostData | null>) => {
-  // 唤起前即时同步最新配置与侧边栏偏好
-  const [loadedUiMode, loadedSidebarCollapsed] = await Promise.all([
-    getUiThemeMode(),
-    getSidebarCollapsed(),
-  ]);
+  // 唤起前同步外观偏好
+  const loadedUiMode = await getUiThemeMode();
   uiMode.value = loadedUiMode;
-  isSidebarCollapsed.value = loadedSidebarCollapsed;
   isModalVisible.value = true;
   hideFloatingButton();
 
@@ -215,7 +201,6 @@ defineExpose({
       :post="currentPost"
       :is-extracting="isExtracting"
       :visible="isModalVisible"
-      :initial-sidebar-collapsed="isSidebarCollapsed"
       @close="closeModal"
     />
   </div>
