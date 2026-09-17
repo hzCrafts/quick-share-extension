@@ -14,8 +14,10 @@ export const LEGACY_THEME_FALLBACK_MAP: Record<string, CardThemeId> = {
   'card-glass': 'liquid-glass',
   'paper-warm': 'craft-editorial',
   'modern-dark': 'raycast-dark',
-  'modern-light': 'gradient-sunset',
-  'gradient-nord': 'gradient-ocean',
+  'modern-light': 'liquid-glass',
+  'gradient-nord': 'liquid-glass',
+  'gradient-sunset': 'craft-editorial',
+  'gradient-ocean': 'liquid-glass',
 };
 
 function getStorageApi() {

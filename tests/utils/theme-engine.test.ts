@@ -62,3 +62,14 @@ describe('Theme Engine 主题解析与导入导出测试', () => {
     });
   });
 });
+
+describe('curated three-theme collection', () => {
+  it('keeps three presets and migrates removed theme preferences', () => {
+    expect(Object.keys(BUILTIN_THEMES)).toHaveLength(3);
+    expect(getThemeById('gradient-sunset').id).toBe('craft-editorial');
+    expect(getThemeById('gradient-ocean').id).toBe('liquid-glass');
+    expect(getThemeById('modern-light').id).toBe('liquid-glass');
+    expect(BUILTIN_THEMES['liquid-glass'].ambient.isDark).toBe(false);
+    expect(BUILTIN_THEMES['liquid-glass'].ambient.glows).toEqual([]);
+  });
+});

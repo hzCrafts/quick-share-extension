@@ -62,7 +62,7 @@ describe('简洁分享编辑器', () => {
     expect(wrapper.text()).not.toContain('高清 PNG');
     expect(wrapper.find('aside').exists()).toBe(false);
     expect(wrapper.get('footer .theme-picker').findAll('button')).toHaveLength(
-      5
+      3
     );
     expect(
       wrapper.get('footer [role="switch"]').attributes('aria-checked')

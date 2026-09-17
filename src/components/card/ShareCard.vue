@@ -679,6 +679,53 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   padding-top: 18px;
 }
 
+.qs-card-wrapper[data-theme='liquid-glass'].has-outer-padding,
+.qs-card-wrapper[data-theme='craft-editorial'].has-outer-padding {
+  padding: 32px;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card {
+  padding: 30px;
+  border-radius: 22px;
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card {
+  padding: 30px;
+  border-radius: 14px;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card-header,
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
+  padding-bottom: 22px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(125, 137, 153, .2);
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  border-bottom-color: #ded8ce;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card-footer,
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-footer {
+  padding-top: 20px;
+  border-top: 1px solid rgba(125, 137, 153, .22);
+}
+.qs-card-wrapper[data-theme='craft-editorial']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: .035;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch' seed='12'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23grain)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-footer-url::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  margin-right: 9px;
+  background: #bd7d70;
+}
+
 /* 环境空间弥散光核容器 */
 .qs-ambient-glows-container {
   position: absolute;

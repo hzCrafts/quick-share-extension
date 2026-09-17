@@ -53,10 +53,8 @@ const emit = defineEmits<{
 
 const themeLabels: Record<string, string> = {
   'raycast-dark': '曜石',
-  'liquid-glass': '通透',
-  'craft-editorial': '纸间',
-  'gradient-sunset': '落日',
-  'gradient-ocean': '深海',
+  'liquid-glass': '冰川玻璃',
+  'craft-editorial': '暖纸墨色',
 };
 const themeLabel = (theme: QuickShareTheme) =>
   themeLabels[theme.id] || theme.name;
@@ -64,13 +62,9 @@ const orbBackgrounds: Record<string, string> = {
   'raycast-dark':
     'radial-gradient(circle at 50% -12%, #111112 20%, #502914 48%, #e7a95b 75%, #fff0ce 100%)',
   'liquid-glass':
-    'radial-gradient(circle at 50% -12%, #7856e8 24%, #a78bf4 48%, #eee6ff 76%, #f9f4ff 100%)',
+    'radial-gradient(circle at 30% 5%, #b3e5f7, #eaf5ff 58%, #d9d5f5)' ,
   'craft-editorial':
-    'radial-gradient(circle at 50% -12%, #ae8b66 22%, #dbc7a9 48%, #fff8e7 78%)',
-  'gradient-sunset':
-    'radial-gradient(circle at 50% -12%, #e66a75 22%, #f5a583 48%, #fff0dc 78%)',
-  'gradient-ocean':
-    'radial-gradient(circle at 50% -12%, #237cc5 22%, #66bfe5 48%, #e6f7ff 78%)',
+    'radial-gradient(circle at 40% 0%, #d6cbbb, #eee8dc 48%, #fcfaf4 85%)',
 };
 const orbBackground = (theme: QuickShareTheme) =>
   orbBackgrounds[theme.id] || theme.previewColor || theme.card.background;
@@ -108,7 +102,7 @@ const footerHeight = ref(68);
 // 自定义主题与主题列表
 const customThemes = ref<QuickShareTheme[]>([]);
 const allThemes = computed<QuickShareTheme[]>(() => {
-  return [...Object.values(BUILTIN_THEMES), ...customThemes.value];
+  return Object.values(BUILTIN_THEMES);
 });
 
 // 卡片渲染配置
