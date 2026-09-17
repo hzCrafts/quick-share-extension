@@ -5,7 +5,6 @@ dist
 
 # Node dependencies
 node_modules
-pnpm-lock.yaml
 
 # OS & IDE files
 .DS_Store
