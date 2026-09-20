@@ -10,7 +10,7 @@ export class XAdapter extends BaseAdapter {
   private onShareCallback: OnShareTrigger | null = null;
 
   match(url: URL): boolean {
-    return url.hostname === 'x.com' || url.hostname === 'twitter.com';
+    return ['x.com', 'twitter.com'].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   }
 
   start(onShare: OnShareTrigger): void {
@@ -815,9 +815,11 @@ export class XAdapter extends BaseAdapter {
     textNodes.forEach((node) => {
       if (!node.nodeValue || !node.nodeValue.includes('\n')) return;
 
-      // 如果是处于容器首尾两端的纯缩进空白节点，直接移除
+      // HTML 块之间的缩进不是正文换行；行内元素之间的换行仍需保留。
       if (node.nodeValue.trim() === '') {
-        if (!node.previousSibling || !node.nextSibling) {
+        const blockTags = /^(P|SECTION|ARTICLE|FIGURE|FIGCAPTION|UL|OL|LI|BLOCKQUOTE|TABLE|H[1-6]|PRE|HR)$/;
+        const isBlock = (sibling: Node | null) => sibling instanceof Element && blockTags.test(sibling.tagName);
+        if (!node.previousSibling || !node.nextSibling || isBlock(node.previousSibling) || isBlock(node.nextSibling)) {
           node.remove();
           return;
         }

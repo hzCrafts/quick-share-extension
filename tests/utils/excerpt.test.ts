@@ -96,6 +96,13 @@ describe('excerpt context limits', () => {
     expect(result.before.length).toBe(512);
     expect(result.after.length).toBe(512);
   });
+  it('keeps section paragraph boundaries in context and explicit blank lines in the selection', () => {
+    const selected = '<section><span>First</span></section><section><br></section><section><span>Second<br><br>Third</span></section>';
+    const result = prepareExcerpt(selected, '<section><span>Earlier</span></section><section><span>Before</span></section>', '<section><span>After</span></section><section><span>Later</span></section>');
+    expect(result.content).toBe(selected);
+    expect(result.before).toBe('Earlier\nBefore');
+    expect(result.after).toBe('After\nLater');
+  });
   it('skips blank context lines and never invents missing context', () => {
     const result = prepareExcerpt('选区', '', '<p>一句</p><br><br><p>二句</p>');
     expect(result.before).toBe('');

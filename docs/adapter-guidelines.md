@@ -99,3 +99,16 @@ export abstract class BaseAdapter {
 - [ ] **4. 原图质量优先**：清洗图片 URL 时获取最高清原图源（如替换缩略图参数为原图，知乎 `data-original`，X `name=large`）。
 - [ ] **5. Clean URL**：使用 `cleanShareUrl` 工具清洗所有追踪 query。
 - [ ] **6. 注册适配器**：在 `src/adapters/index.ts` 中注册新适配器。
+
+
+## 通用网页兜底（仅摘录）
+
+`UniversalAdapter` 在四个专用适配器之后匹配普通 HTTP(S) 页面。`start/stop` 不注入按钮，也不启动页面扫描；没有选区时 `extract` 返回 `null`。微信文章通过正文容器及页面提供的标题、公众号名、明确发布时间补充来源信息，不请求登录、不用当前时间代替文章时间。
+
+共享 `src/utils/selection.ts` 负责双端边界校验、选区 HTML 与上下文切分，浮层和右键菜单调用同一管线。点击浮层使用保存的 Range，避免焦点移动导致选区丢失。文章选区不扩展到侧边导航或编辑区域。
+
+通用网页必须通过 `sanitizeWebExcerpt` 清洗宿主脚本、事件属性、危险 URL 与定位样式，保留正文结构与媒体顺序；相对资源地址转绝对地址，懒加载图片读取 `data-src/data-original`，使用已有图片代理支持跨域导出。站点 favicon 通过 `PostData.siteIconUrl` 传入，仍只显示 logo。规范 URL 仅接受同源 canonical，微信文章的 `__biz/mid/idx/sn` 等标识参数不得删除。
+
+上述通用摘录不适用“全文展开／按钮注入”检查项。专用适配器必须维持优先级与原有 Entity 边界。
+
+通用网页的 `author.name` 只保存明确提供的署名，缺失时为空字符串，不以站点名或作者主页 URL 替代；卡片此时使用标题顶栏，并保留可读取的日期。公众号头像只读取账号资料中的头像，不以文章封面替代；缺失或加载失败时使用与编辑器一致、随当前主题切换的圆球。

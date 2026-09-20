@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { formatPostDate } from '@/utils/post-date';
 import type { PostData } from '@/types/post';
 import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
 import { getThemeById } from '@/utils/theme-engine';
 import { prepareExcerpt } from '@/utils/excerpt';
+import ThemeOrb from '@/components/ThemeOrb.vue';
 
 const props = defineProps<{
   post: PostData;
@@ -161,8 +162,8 @@ const platformConfig = computed(() => {
           hostFavicon = '';
         }
         return {
-          name: '网页',
-          faviconUrl: hostFavicon,
+          name: props.post.siteName || '网页',
+          faviconUrl: props.post.siteIconUrl || hostFavicon,
           style: {
             backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(100, 116, 139, 0.10)',
             color: isDark ? '#cbd5e1' : '#475569',
@@ -189,6 +190,15 @@ const platformConfig = computed(() => {
 });
 
 const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.post.platform === 'gemini');
+const titleOnlyHeader = computed(() => props.post.platform === 'universal' && !props.post.author.name.trim());
+const headerTitle = computed(() => props.post.title || props.post.siteName || '');
+const isWechatArticle = computed(() => {
+  if (props.post.platform !== 'universal') return false;
+  try { return new URL(props.post.url).hostname === 'mp.weixin.qq.com'; }
+  catch { return false; }
+});
+const accountAvatarFailed = ref(false);
+watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = false; });
 </script>
 
 <template>
@@ -196,7 +206,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   <div
     class="qs-card-wrapper"
     :data-theme="currentTheme.id"
-    :class="{ 'has-outer-padding': options.showOuterPadding }"
+    :class="{ 'has-outer-padding': options.showOuterPadding, 'qs-wechat-article': isWechatArticle }"
     :style="themeCssVars"
   >
     <!-- 环境空间弥散光核层 (Ambient Glows) -->
@@ -229,11 +239,25 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         :style="{ background: currentTheme.card.borderHighlight }"
       />
 
-      <!-- Header: 作者信息 & 站点 Favicon 标识 (仅在非 Thread 模式下展示标准 Header，Thread 模式由下方专属连线 Header 渲染) -->
-      <div v-if="!post.parentThreadPost" class="qs-card-header">
-        <div class="qs-author-box">
+      <!-- Header: 作者或文章标题；Thread 模式使用下方专属连线 Header -->
+      <div v-if="!post.parentThreadPost" class="qs-card-header" :class="{ 'qs-title-header': titleOnlyHeader }">
+        <div v-if="titleOnlyHeader" class="qs-title-meta">
+          <h3 v-if="headerTitle" class="qs-header-title">{{ headerTitle }}</h3>
+          <time v-if="formatPostDate(post.createdAt)" class="qs-post-date" :datetime="post.createdAt">{{ formatPostDate(post.createdAt) }}</time>
+        </div>
+        <div v-else class="qs-author-box">
+          <div v-if="isWechatArticle" class="qs-publisher-avatar">
+            <img
+              v-if="post.author.avatarUrl && !accountAvatarFailed"
+              :src="post.author.avatarUrl"
+              :alt="post.author.name"
+              crossorigin="anonymous"
+              @error="accountAvatarFailed = true"
+            />
+            <ThemeOrb v-else :theme="currentTheme" class="qs-publisher-orb" />
+          </div>
           <img
-            v-if="post.author.avatarUrl"
+            v-else-if="post.author.avatarUrl"
             :src="post.author.avatarUrl"
             alt="avatar"
             class="qs-avatar-img"
@@ -257,40 +281,12 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
           </div>
         </div>
 
-        <!-- 平台 Favicon Badge (非 AI 对话平台展示，AI 场景左侧专属头像与品牌已足够) -->
-        <div
-          v-if="!isAiPlatform"
-          class="qs-platform-badge"
-          :title="platformConfig.name"
-        >
-          <img
-            v-if="platformConfig.faviconUrl"
-            :src="platformConfig.faviconUrl"
-            :alt="platformConfig.name"
-            class="qs-platform-icon"
-            crossorigin="anonymous"
-            @error="(e: any) => e.target.style.display = 'none'"
-          />
-        </div>
+
       </div>
 
       <!-- Content 区域 -->
       <!-- A. Thread 连线对话链模式 (主帖/上级回复 + 当前评论) -->
       <div v-if="post.parentThreadPost" class="qs-thread-wrapper">
-        <!-- 顶栏平台 Badge -->
-        <div v-if="!isAiPlatform" class="qs-thread-top-bar">
-          <div class="qs-platform-badge" :title="platformConfig.name">
-            <img
-              v-if="platformConfig.faviconUrl"
-              :src="platformConfig.faviconUrl"
-              :alt="platformConfig.name"
-              class="qs-platform-icon"
-              crossorigin="anonymous"
-              @error="(e: any) => e.target.style.display = 'none'"
-            />
-            </div>
-        </div>
-
         <div class="qs-thread-container">
           <!-- 1. 上级推文 (Parent / Root Tweet) -->
           <div class="qs-thread-item qs-thread-parent">
@@ -477,7 +473,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 
           <!-- 2. 非 AI 场景：常规文章/帖子标题 -->
           <h3
-            v-else-if="post.title"
+            v-else-if="post.title && !titleOnlyHeader"
             class="qs-post-title"
           >
             {{ post.title }}
@@ -589,13 +585,22 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
         </div>
       </template>
 
-      <!-- Footer: 清洗后 URL 链接 -->
+      <!-- Footer: 原文链接与站点图标 -->
       <div
         v-if="post.url && !isAiPlatform"
         class="qs-card-footer"
       >
         <div class="qs-footer-url">
           {{ post.url }}
+        </div>
+        <div v-if="platformConfig.faviconUrl" class="qs-platform-badge" :title="platformConfig.name">
+          <img
+            :src="platformConfig.faviconUrl"
+            :alt="platformConfig.name"
+            class="qs-platform-icon"
+            crossorigin="anonymous"
+            @error="(e: any) => e.target.style.display = 'none'"
+          />
         </div>
       </div>
     </div>
@@ -786,6 +791,57 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   flex: 1;
 }
 
+.qs-title-header { align-items: flex-start; }
+.qs-title-meta { min-width: 0; flex: 1; }
+.qs-header-title {
+  margin: 0;
+  color: var(--qs-text-primary);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: -.025em;
+  overflow-wrap: anywhere;
+}
+.qs-title-meta .qs-post-date { margin-top: 8px; }
+
+/* Missing account avatars share the editor's exact theme-orb component. */
+.qs-publisher-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+}
+.qs-publisher-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 14px;
+}
+.qs-publisher-avatar .qs-publisher-orb {
+  --orb-edge: rgba(106, 132, 165, .2);
+  --orb-shadow: rgba(67, 99, 139, .14);
+  --orb-glow: rgba(145, 190, 229, .08);
+  --orb-highlight: rgba(255, 255, 255, .4);
+  filter: saturate(1.06);
+  box-shadow:
+    inset 0 0 0 1px var(--orb-edge),
+    inset 0 1px 2px var(--orb-highlight),
+    0 2px 5px var(--orb-shadow),
+    0 0 8px var(--orb-glow);
+}
+.qs-card-wrapper[data-theme='raycast-dark'] .qs-publisher-orb {
+  --orb-edge: rgba(237, 192, 127, .26);
+  --orb-shadow: rgba(0, 0, 0, .18);
+  --orb-glow: rgba(230, 157, 69, .09);
+  --orb-highlight: rgba(255, 230, 190, .12);
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-publisher-orb {
+  --orb-edge: rgba(152, 121, 80, .2);
+  --orb-shadow: rgba(119, 92, 58, .13);
+  --orb-glow: rgba(178, 148, 107, .06);
+  --orb-highlight: rgba(255, 252, 244, .45);
+}
+
 .qs-avatar-img {
   width: 44px;
   height: 44px;
@@ -860,8 +916,8 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
 }
 
 .qs-platform-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
 }
 
@@ -1067,6 +1123,15 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   margin-top: 0;
   margin-bottom: 0.85em;
   word-break: break-word;
+}
+
+/* WeChat renders paragraph leaves as either p or section. Its stylesheet does
+   not cross into the card; restore the 1.5em paragraph gap without spacing
+   structural sections a second time or rewriting the selected DOM. */
+.qs-wechat-article :deep(.quick-share-rich-body p),
+.qs-wechat-article :deep(.quick-share-rich-body section:not(:has(p, section, div, ul, ol, table, blockquote, pre, h1, h2, h3, h4, h5, h6))) {
+  margin-top: 0;
+  margin-bottom: 1.5em;
 }
 
 :deep(.quick-share-rich-body blockquote) {
@@ -1502,12 +1567,7 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   width: 100%;
 }
 
-.qs-thread-top-bar {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  margin-bottom: 2px;
-}
+
 
 .qs-thread-container {
   display: flex;
@@ -1567,11 +1627,15 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   padding-top: 10px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
   box-sizing: border-box;
 }
 
 .qs-footer-url {
+  flex: 1;
+  min-width: 0;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11.5px;
   line-height: 1.4;
@@ -1579,7 +1643,6 @@ const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.p
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
   opacity: 0.85;
   user-select: all;
   letter-spacing: -0.01em;

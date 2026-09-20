@@ -11,7 +11,7 @@ export class ChatGPTAdapter extends BaseAdapter {
   private onShareCallback: OnShareTrigger | null = null;
 
   match(url: URL): boolean {
-    return url.hostname.includes('chatgpt.com') || url.hostname.includes('chat.openai.com');
+    return ['chatgpt.com', 'chat.openai.com'].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   }
 
   start(onShare: OnShareTrigger): void {

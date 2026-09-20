@@ -11,7 +11,7 @@ export class GeminiAdapter extends BaseAdapter {
   private onShareCallback: OnShareTrigger | null = null;
 
   match(url: URL): boolean {
-    return url.hostname.includes('gemini.google.com');
+    return ['gemini.google.com'].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   }
 
   start(onShare: OnShareTrigger): void {

@@ -151,6 +151,41 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
     });
   });
 
+  describe('Web article headers', () => {
+    it('puts the title and source date at the top when there is no author', () => {
+      const wrapper = mount(ShareCard, { props: {
+        post: { ...samplePost, platform: 'universal', author: { name: '' }, siteName: 'Example' },
+        options: defaultOptions,
+      } });
+      expect(wrapper.find('.qs-card-header h3').text()).toBe(samplePost.title);
+      expect(wrapper.find('.qs-card-header time').exists()).toBe(true);
+      expect(wrapper.find('.qs-author-box').exists()).toBe(false);
+      expect(wrapper.find('.qs-card-content .qs-post-title').exists()).toBe(false);
+      expect(wrapper.findAll('h3')).toHaveLength(1);
+    });
+
+    it.each(['raycast-dark', 'liquid-glass', 'craft-editorial'])('uses a theme orb in %s for WeChat', themeId => {
+      const wrapper = mount(ShareCard, { props: {
+        post: { ...samplePost, platform: 'universal', url: 'https://mp.weixin.qq.com/s/article', author: { name: '公众号名称' } },
+        options: { ...defaultOptions, themeId },
+      } });
+      expect(wrapper.find('.qs-publisher-orb').exists()).toBe(true);
+      expect(wrapper.find('.qs-avatar-fallback').exists()).toBe(false);
+      expect(wrapper.find('.qs-author-name').text()).toBe('公众号名称');
+    });
+
+    it('falls back to the theme orb when a real avatar fails to load', async () => {
+      const wrapper = mount(ShareCard, { props: {
+        post: { ...samplePost, platform: 'universal', url: 'https://mp.weixin.qq.com/s/article' },
+        options: defaultOptions,
+      } });
+      await wrapper.find('.qs-publisher-avatar img').trigger('error');
+      expect(wrapper.find('.qs-publisher-orb').exists()).toBe(true);
+      await wrapper.setProps({ post: { ...samplePost, platform: 'universal', url: 'https://mp.weixin.qq.com/s/article', author: { name: 'Another account', avatarUrl: 'https://example.com/new.png' } } });
+      expect(wrapper.find('.qs-publisher-avatar img').attributes('src')).toBe('https://example.com/new.png');
+    });
+  });
+
   describe('5. Thread 对话链模式渲染', () => {
     it('当存在 parentThreadPost 时，正确渲染主帖与回复两级结构及连线容器', () => {
       const threadPost: PostData = {
