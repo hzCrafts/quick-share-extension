@@ -127,7 +127,7 @@ export function prepareExcerpt(html: string, before = '', after = '') {
     container.innerHTML = source;
     container.querySelectorAll('img, video, svg, canvas, iframe, button').forEach((node) => node.remove());
     container.querySelectorAll('br').forEach((node) => node.replaceWith('\n'));
-    container.querySelectorAll('p, div, li, blockquote, h1, h2, h3, h4').forEach((node) => node.append('\n'));
+    container.querySelectorAll('p, section, div, li, blockquote, h1, h2, h3, h4').forEach((node) => node.append('\n'));
     // Collapse empty lines in decorative context, retaining real paragraph boundaries.
     const text = (container.textContent || '').split('\n').map((line) => line.trim()).filter(Boolean).join('\n');
     const chars = Array.from(text);

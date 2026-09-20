@@ -12,7 +12,7 @@ export default defineConfig({
   }),
   manifest: {
     name: 'Quick Share - 社交媒体卡片分享',
-    description: '快速将 X/Twitter、知乎等社交媒体帖子转化为精美分享卡片图',
+    description: '将 X、知乎、ChatGPT、Gemini 的内容或任意网页的选中文字转化为精美分享卡片',
     permissions: ['storage', 'contextMenus', 'clipboardWrite'],
     host_permissions: ['*://*/*'],
     icons: {

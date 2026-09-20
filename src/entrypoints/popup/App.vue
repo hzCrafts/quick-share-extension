@@ -143,7 +143,7 @@ const handleSelectMode = async (mode: UiThemeMode) => {
 
     <!-- Instructions -->
     <div class="mt-4 p-3 bg-zinc-50 dark:bg-zinc-800/40 rounded-xl text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed border border-zinc-200/60 dark:border-white/5">
-      在支持的站点点击 <span class="font-semibold text-zinc-900 dark:text-white">QuickShare</span> 按钮，或划选文字右键即可生成高清卡片。
+      以上站点支持全文分享，其他网页划选文字即可分享。
     </div>
 
     <!-- Footer -->

@@ -11,7 +11,7 @@ export class ZhihuAdapter extends BaseAdapter {
   private onShareCallback: OnShareTrigger | null = null;
 
   match(url: URL): boolean {
-    return url.hostname.includes('zhihu.com');
+    return ['zhihu.com'].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   }
 
   start(onShare: OnShareTrigger): void {

@@ -10,7 +10,7 @@ export class XAdapter extends BaseAdapter {
   private onShareCallback: OnShareTrigger | null = null;
 
   match(url: URL): boolean {
-    return url.hostname === 'x.com' || url.hostname === 'twitter.com';
+    return ['x.com', 'twitter.com'].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   }
 
   start(onShare: OnShareTrigger): void {

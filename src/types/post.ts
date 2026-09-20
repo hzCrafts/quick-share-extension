@@ -24,6 +24,8 @@ export interface PostData {
   platform: PlatformType;
   url: string;
   author: PostAuthor;
+  siteName?: string;
+  siteIconUrl?: string;
   title?: string;
   promptHtml?: string;
   content: string;
