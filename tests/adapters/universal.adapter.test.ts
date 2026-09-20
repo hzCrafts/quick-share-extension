@@ -74,6 +74,31 @@ describe('Universal excerpt sharing', () => {
     expect(output.children[2].textContent).toBe('SecondThird');
   });
 
+  it('keeps explicit zero margins around a blank line, image and caption', async () => {
+    document.body.innerHTML = '<div id="js_content"><p style="margin:0 16px">Text</p><p style="margin:0 16px"><span><br></span></p><section style="margin:0 16px"><img data-src="https://example.com/image.jpg"></section><section style="margin-bottom:0px">Caption</section></div>';
+    const range = document.createRange();
+    range.selectNodeContents(document.querySelector('#js_content')!);
+    const result = await extractSelection(adapter, range);
+    const output = document.createElement('div');
+    output.innerHTML = result!.contentHtml!;
+    expect(Array.from(output.children).map(el => (el as HTMLElement).style.marginBottom)).toEqual(['0px', '0px', '0px', '0px']);
+    expect(output.querySelectorAll('br')).toHaveLength(1);
+    expect(Array.from(output.children).map(el => el.tagName)).toEqual(['P', 'P', 'SECTION', 'SECTION']);
+    expect(output.querySelector('img')?.getAttribute('src')).toBe('https://example.com/image.jpg');
+    expect((output.children[0] as HTMLElement).style.marginLeft).toBe('');
+  });
+
+  it('preserves safe vertical spacing without allowing host layout or resource expressions', () => {
+    const output = document.createElement('div');
+    output.innerHTML = sanitizeWebExcerpt('<p style="margin:12px 100vw 0px;position:fixed;height:500px">Text</p><p style="margin-bottom:var(--host-gap)">Next</p>', 'https://example.com');
+    const first = output.children[0] as HTMLElement;
+    expect(first.style.marginTop).toBe('12px');
+    expect(first.style.marginBottom).toBe('0px');
+    expect(first.style.marginRight).toBe('');
+    expect(first.style.height).toBe('');
+    expect(output.innerHTML).not.toContain('var(');
+  });
+
   it('preserves inline formatting and does not add unselected media', async () => {
     document.body.innerHTML = '<article><p><img src="/unselected.jpg"><strong>Selected</strong></p></article>';
     const result = await extractSelection(adapter, rangeIn('strong'));

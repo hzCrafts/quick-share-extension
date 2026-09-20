@@ -31,6 +31,13 @@ export function sanitizeWebExcerpt(html: string, base: string): string {
         const safe = ['font-weight', 'font-style', 'text-decoration', 'text-align', 'white-space', 'vertical-align']
           .map(prop => [prop, style?.getPropertyValue(prop)])
           .filter(([, value]) => value && !/url\s*\(|var\s*\(/i.test(value));
+        // A zero paragraph margin is meaningful: many article editors insert
+        // <p><br></p> instead of using CSS paragraph gaps. Dropping that zero
+        // makes the card add its default spacing on top of every blank line.
+        for (const prop of ['margin-top', 'margin-bottom']) {
+          const value = style?.getPropertyValue(prop).trim();
+          if (value && /^(?:0|\d*\.?\d+(?:px|em|rem))$/.test(value)) safe.push([prop, value]);
+        }
         el.removeAttribute('style');
         for (const [prop, value] of safe) style.setProperty(prop, value);
       } else if (!['alt', 'title', 'colspan', 'rowspan', 'start', 'reversed', 'dir', 'lang', 'viewbox', 'd', 'points', 'xmlns'].includes(name)) {
