@@ -64,15 +64,11 @@ describe('简洁分享编辑器', () => {
     expect(wrapper.get('footer .theme-picker').findAll('button')).toHaveLength(
       3
     );
-    expect(
-      wrapper.get('footer [role="switch"]').attributes('aria-checked')
-    ).toBe('true');
+    expect(wrapper.find('footer [role="switch"]').exists()).toBe(false);
   });
-  it('updates background padding in the export source', async () => {
+  it('keeps the default background padding in the export source', async () => {
     await open();
-    await wrapper.get('[aria-label="背景留白"]').trigger('click');
-    await vi.advanceTimersByTimeAsync(150);
-    expect(wrapper.find('.has-outer-padding').exists()).toBe(false);
+    expect(wrapper.find('.has-outer-padding').exists()).toBe(true);
     expect(wrapper.get('.qs-excerpt-wrapper').text()).toContain('核心金句');
   });
   it('exports the unscaled offscreen source, never the preview image', async () => {
@@ -99,7 +95,7 @@ describe('简洁分享编辑器', () => {
     await open();
     expect(writeClipboard).toHaveBeenCalledTimes(1);
     expect(wrapper.get('footer .export-actions > .copy-notice').text()).toBe('已复制');
-    await wrapper.get('[aria-label="背景留白"]').trigger('click');
+    await wrapper.findAll('footer .theme-choice')[1].trigger('click');
     await vi.advanceTimersByTimeAsync(150);
     expect(writeClipboard).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(2000);

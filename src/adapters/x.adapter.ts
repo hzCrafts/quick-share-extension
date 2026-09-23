@@ -162,6 +162,8 @@ export class XAdapter extends BaseAdapter {
       // 1. 提取正文内容与富文本 HTML
       let content = '';
       let contentHtml: string | undefined = undefined;
+      let quoteHtml: string | undefined;
+      let quoteElement: HTMLElement | undefined;
       let excerptBeforeHtml: string | undefined = undefined;
       let excerptAfterHtml: string | undefined = undefined;
       const isExcerpt = Boolean(selection);
@@ -245,20 +247,15 @@ export class XAdapter extends BaseAdapter {
         const quoteData = this.extractQuoteTweet(tweet);
         if (quoteData) {
           content += quoteData.text;
-          if (contentHtml) {
-            contentHtml += quoteData.html;
-          } else {
-            contentHtml = quoteData.html;
-          }
+          quoteHtml = quoteData.html;
+          quoteElement = quoteData.element;
         }
       }
 
       // 2. 提取当前推文自身的独立配图与视频（严格排除 Quote Tweet 原帖内的图片/视频）
       let mediaList: PostMedia[] | undefined = undefined;
       if (!selection) {
-        const quoteEl = tweet.querySelector<HTMLElement>(
-          'div[role="link"], div[data-testid="quoteTweet"], [role="link"][tabindex="0"]'
-        );
+        const quoteEl = quoteElement;
         const list: PostMedia[] = [];
 
         // (1) 提取推文配图
@@ -323,6 +320,7 @@ export class XAdapter extends BaseAdapter {
         },
         content,
         contentHtml,
+        quoteHtml,
         isExcerpt,
         excerptBeforeHtml,
         excerptAfterHtml,

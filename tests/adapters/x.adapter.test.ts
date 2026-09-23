@@ -28,6 +28,25 @@ describe('XAdapter 结构解析与数据提取测试', () => {
   });
 
   describe('2. 推文数据提取与换行/图片保真', () => {
+    it('keeps an attached image separate from the quoted post', async () => {
+      document.body.innerHTML = `<article data-testid="tweet">
+        <div data-testid="User-Name"><a href="/author">Author</a></div>
+        <div data-testid="tweetText">My comment</div>
+        <div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/own?name=small"></div>
+        <div role="link" data-testid="quoteTweet">
+          <div data-testid="User-Name"><a href="/quoted">Quoted author</a></div>
+          <div data-testid="tweetText">Quoted text</div>
+          <div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/quoted?name=small"></div>
+        </div>
+        <a href="/author/status/123"><time datetime="2026-09-23T00:00:00Z">Sep 23</time></a>
+      </article>`;
+      const post = await adapter.extract(document.querySelector<HTMLElement>('article')!);
+      expect(post?.contentHtml).toContain('My comment');
+      expect(post?.contentHtml).not.toContain('Quoted text');
+      expect(post?.quoteHtml).toContain('Quoted text');
+      expect(post?.media?.map(item => item.url)).toEqual(['https://pbs.twimg.com/media/own?name=large']);
+    });
+
     it('正确提取单推文作者、handle、头像、正文及规范 URL', async () => {
       document.body.innerHTML = X_TWEET_SIMPLE_HTML;
       const tweetEl = document.querySelector<HTMLElement>('article[data-testid="tweet"]')!;
