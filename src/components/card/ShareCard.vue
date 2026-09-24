@@ -169,16 +169,9 @@ const platformConfig = computed(() => {
           },
         };
       default: {
-        let hostFavicon = '';
-        try {
-          const host = new URL(props.post.url).hostname;
-          hostFavicon = `https://${host}/favicon.ico`;
-        } catch {
-          hostFavicon = '';
-        }
         return {
           name: props.post.siteName || '网页',
-          faviconUrl: props.post.siteIconUrl || hostFavicon,
+          faviconUrl: props.post.siteIconUrl || '',
           style: {
             backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(100, 116, 139, 0.10)',
             color: isDark ? '#cbd5e1' : '#475569',
@@ -561,6 +554,10 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card {
   padding: 30px;
   border-radius: 22px;
+}
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-author-handle,
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-footer-url {
+  opacity: 1;
 }
 /* A magnified copy of the ambient field is visible only through the bevel.
    Keep this inside the card: negative insets get clipped during PNG export. */

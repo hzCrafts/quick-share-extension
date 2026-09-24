@@ -124,9 +124,20 @@ describe('简洁分享编辑器', () => {
     expect(parseFloat(dialog.style.height)).toBeLessThanOrEqual(810);
     expect(parseFloat(dialog.style.height)).toBeLessThanOrEqual(window.innerHeight - 32);
   });
-  it('closes with Escape' , async () => {
+  it('closes with Escape even when the host page stops keydown bubbling', async () => {
     await open();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    const target = document.createElement('input');
+    document.body.appendChild(target);
+    const stopOnHostPage = (event: KeyboardEvent) => event.stopPropagation();
+    document.addEventListener('keydown', stopOnHostPage);
+    try {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true, cancelable: true });
+      target.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+    } finally {
+      document.removeEventListener('keydown', stopOnHostPage);
+      target.remove();
+    }
     expect(wrapper.emitted('close')).toHaveLength(1);
   });
   it('provides a retry if rendering fails', async () => {

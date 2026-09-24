@@ -30,7 +30,18 @@ export default defineBackground(() => {
   });
 
   // 处理跨域受限图片的无 CORS 阻拦代理抓取
-  browser.runtime.onMessage.addListener((message: any) => {
+  browser.runtime.onMessage.addListener((message: any, sender: { tab?: { id?: number; favIconUrl?: string } }) => {
+    if (message?.type === 'GET_TAB_FAVICON') {
+      return (async () => {
+        if (!sender.tab?.id) return { url: '' };
+        try {
+          const tab = await browser.tabs.get(sender.tab.id);
+          return { url: tab.favIconUrl || sender.tab.favIconUrl || '' };
+        } catch {
+          return { url: sender.tab.favIconUrl || '' };
+        }
+      })();
+    }
     if (message?.type === 'FETCH_IMAGE_BASE64' && message.url) {
       return (async () => {
         try {

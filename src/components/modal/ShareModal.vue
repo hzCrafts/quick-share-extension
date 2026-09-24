@@ -375,10 +375,10 @@ const selectTheme = (themeId: CardThemeId) => {
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    emit('close');
-  }
+  if (!props.visible || event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  emit('close');
 };
 
 let resizeObserver: ResizeObserver | null = null;
@@ -419,7 +419,7 @@ onMounted(async () => {
   window.addEventListener('resize', updateWindowSize);
   window.addEventListener('mousemove', handleMouseMove);
   window.addEventListener('mouseup', handleMouseUp);
-  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keydown', handleKeyDown, true);
 });
 
 onUnmounted(() => {
@@ -434,7 +434,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateWindowSize);
   window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', handleMouseUp);
-  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keydown', handleKeyDown, true);
   if (renderTimer) clearTimeout(renderTimer);
   if (previewDataUrl.value) {
     URL.revokeObjectURL(previewDataUrl.value);

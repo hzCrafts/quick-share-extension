@@ -192,20 +192,20 @@ export const BUILTIN_THEMES: Record<BuiltinCardThemeId, QuickShareTheme> = {
   'liquid-glass': {
     version: 1, id: 'liquid-glass', name: '冰川玻璃', author: 'QuickShare',
     description: '低饱和冰蓝与浅紫柔光，通透的浅色玻璃',
-    previewColor: 'linear-gradient(135deg, #d0e0e6, #e9edf2 55%, #dedce9)',
+    previewColor: 'linear-gradient(135deg, #cfe0e7, #e9edf2 55%, #dedbea)',
     ambient: {
       isDark: false,
-      outerBackground: 'radial-gradient(ellipse at 7% 12%, rgba(136,176,192,.52), transparent 56%), radial-gradient(ellipse at 94% 88%, rgba(169,162,191,.46), transparent 58%), linear-gradient(135deg, #d4e1e6 0%, #e2e9ee 45%, #dce2eb 76%, #e2dce8 100%)',
+      outerBackground: 'radial-gradient(ellipse at 7% 12%, rgba(133,177,195,.52), transparent 56%), radial-gradient(ellipse at 94% 88%, rgba(168,161,192,.46), transparent 58%), linear-gradient(135deg, #d3e1e7 0%, #e1e9ef 45%, #dbe2ec 76%, #e2dbe9 100%)',
       glows: [], noiseOpacity: 0,
     },
     card: {
-      background: 'linear-gradient(145deg, rgba(255,255,255,.32), rgba(247,249,252,.20))',
-      backdropFilter: 'blur(20px) saturate(108%)',
+      background: 'linear-gradient(145deg, rgba(255,255,255,.58), rgba(247,249,252,.42))',
+      backdropFilter: 'blur(10px) saturate(108%)',
       border: '1px solid transparent',
       shadow: '0 16px 32px -18px rgba(47,65,83,.28), 0 3px 8px -4px rgba(47,65,83,.16)',
       innerGlow: 'inset 0 1px 2px rgba(255,255,255,.28), inset 0 -1px 2px rgba(67,83,102,.08)',
     },
-    typography: { fontFamily: 'sans', textPrimary: '#192330', textSecondary: '#65758a', textMuted: '#8290a3' },
+    typography: { fontFamily: 'sans', textPrimary: '#192330', textSecondary: '#536479', textMuted: '#718095' },
     components: {
       promptCard: { background: 'rgba(255,255,255,.4)', border: '1px solid rgba(133,159,193,.18)', borderRadius: '12px', headerColor: '#597b9b' },
       quoteBlock: { background: 'rgba(158,194,223,.09)', borderColor: '#9bbbd4', borderRadius: '0 6px 6px 0' },
