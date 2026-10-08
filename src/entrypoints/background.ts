@@ -14,7 +14,7 @@ export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => {
     browser.contextMenus.create({
       id: 'quick-share-selection',
-      title: '使用 QuickShare 生成金句卡片',
+      title: 'QuickShare',
       contexts: ['selection'],
     });
   });
@@ -22,9 +22,11 @@ export default defineBackground(() => {
   // 处理右键菜单点击
   browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === 'quick-share-selection' && tab?.id) {
-      browser.tabs.sendMessage(tab.id, {
+      void browser.tabs.sendMessage(tab.id, {
         type: 'QUICK_SHARE_SELECTION_TRIGGER',
         selectionText: info.selectionText,
+      }).catch((error) => {
+        console.warn('[QuickShare Background] Selection message failed:', error);
       });
     }
   });
