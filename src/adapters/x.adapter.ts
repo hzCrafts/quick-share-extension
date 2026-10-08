@@ -3,6 +3,8 @@ import type { PostData, PostMedia } from '@/types/post';
 import { cleanShareUrl } from '@/utils/url';
 import { sanitizeHtmlForCard } from '@/utils/exporter';
 
+const LINK_CARD_SELECTOR = '[data-testid="card.wrapper"], [data-testid="card.layoutLarge.detail"], [data-testid="card.layoutSmall.detail"], [data-testid="linkCard"]';
+
 export class XAdapter extends BaseAdapter {
   readonly platform = 'x';
   readonly name = 'X';
@@ -663,9 +665,11 @@ export class XAdapter extends BaseAdapter {
     // 4. 提取原帖配图 (最多支持 4 张网格)
     const quoteImgs: string[] = [];
     const photoEls = quoteEl.querySelectorAll<HTMLImageElement>(
-      'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"]'
+      'div[data-testid="tweetPhoto"] img'
     );
     photoEls.forEach((img) => {
+      // A URL preview inside the quoted tweet is not media attached to that tweet.
+      if (img.closest(LINK_CARD_SELECTOR)) return;
       if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
         let highResUrl = img.src;
         if (highResUrl.includes('name=')) {
@@ -677,8 +681,15 @@ export class XAdapter extends BaseAdapter {
       }
     });
 
-    // 检查原帖视频
-    const quoteVideoInfo = this.extractVideoInfo(quoteEl);
+    // Only a native video component proves that the quote contains video.
+    // Scanning the entire quote mistakes avatar/background images for a poster.
+    const quoteVideo = Array.from(quoteEl.querySelectorAll<HTMLElement>(
+      '[data-testid="videoComponent"], [data-testid="videoPlayer"], video'
+    )).find((el) => !el.closest(LINK_CARD_SELECTOR));
+    const videoMediaRoot = quoteVideo?.closest<HTMLElement>('[data-testid="tweetPhoto"], [data-testid="videoPlayer"]');
+    const quoteVideoInfo = quoteVideo
+      ? this.extractVideoInfo(videoMediaRoot && quoteEl.contains(videoMediaRoot) ? videoMediaRoot : quoteVideo)
+      : null;
 
     // 5. 组装嵌入式 Quote Tweet DOM
     let html = '<div class="quick-share-quote-tweet">';
@@ -762,7 +773,7 @@ export class XAdapter extends BaseAdapter {
       for (const el of bgEls) {
         const bg = el.style.backgroundImage || '';
         const match = bg.match(/url\(["']?(https:\/\/[^"']+)["']?\)/);
-        if (match && match[1] && (match[1].includes('video_thumb') || match[1].includes('amplify_video_thumb') || match[1].includes('twimg.com'))) {
+        if (match && match[1] && (match[1].includes('video_thumb') || match[1].includes('amplify_video_thumb'))) {
           posterUrl = match[1];
           break;
         }

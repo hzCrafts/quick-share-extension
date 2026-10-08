@@ -11,13 +11,15 @@ const version = browser.runtime.getManifest().version;
         <QuickShareLogo :size="27" />
       </div>
       <div class="brand-info">
-        <h1>QuickShare</h1>
-        <span class="version">v{{ version }}</span>
+        <div class="brand-title">
+          <h1>QuickShare</h1>
+          <span class="version">v{{ version }}</span>
+        </div>
+        <div class="authors" aria-label="作者：Ryan、Kafka">
+          <span>by</span>
+          <span class="author-names"><a href="https://github.com/ryancui92" target="_blank" rel="noopener noreferrer">Ryan</a>, <a href="https://github.com/hzCrafts" target="_blank" rel="noopener noreferrer">Kafka</a></span>
+        </div>
       </div>
-    </div>
-    <div class="authors" aria-label="作者：Ryan、Kafka">
-      <span>by</span>
-      <span class="author-names"><a href="https://github.com/ryancui92" target="_blank" rel="noopener noreferrer">Ryan</a>, <a href="https://github.com/hzCrafts" target="_blank" rel="noopener noreferrer">Kafka</a></span>
     </div>
   </main>
 </template>
@@ -49,6 +51,12 @@ const version = browser.runtime.getManifest().version;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9);
 }
 .brand-info { min-width: 0; }
+.brand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
 h1 {
   margin: 0;
   font-size: 17px;
@@ -57,8 +65,6 @@ h1 {
   font-weight: 700;
 }
 .version {
-  display: block;
-  margin-top: 5px;
   color: #8b929d;
   font-size: 11px;
   line-height: 1.2;
@@ -68,9 +74,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 19px;
-  padding-top: 14px;
-  border-top: 1px solid #e9ecf0;
+  margin-top: 6px;
   color: #777f8a;
   font-size: 12px;
   line-height: 1.3;
@@ -94,7 +98,7 @@ h1 {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
   }
   .version { color: #9299a5; }
-  .authors { color: #adb3be; border-top-color: #30343b; }
+  .authors { color: #adb3be; }
   .authors a:hover,
   .authors a:focus-visible { color: #83b8f2; }
 }
