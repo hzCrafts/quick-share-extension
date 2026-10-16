@@ -12,6 +12,8 @@ export interface PostMedia {
   url: string;
   duration?: string;
   posterUrl?: string;
+  /** Source media width / height, used for equal-height video pairs. */
+  aspectRatio?: number;
 }
 
 export interface PostContextThread {

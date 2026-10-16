@@ -33,6 +33,27 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
     createdAt: '2026-09-01T12:00:00.000Z',
   };
 
+  it('renders two video covers side by side with separate play and duration badges', () => {
+    const wrapper = mount(ShareCard, {
+      props: {
+        post: { ...samplePost, platform: 'x', media: [
+          { type: 'video', url: 'https://example.com/first.jpg', aspectRatio: 16 / 9, duration: '0:12' },
+          { type: 'video', url: 'https://example.com/second.jpg', aspectRatio: 9 / 16, duration: '1:23' },
+        ] },
+        options: defaultOptions,
+      },
+    });
+    expect(wrapper.find('.qs-media-gallery').attributes('style')).toContain('minmax(0, 1.7777777777777777fr) minmax(0, 0.5625fr)');
+    expect(wrapper.find('.qs-media-gallery').classes()).toContain('qs-media-with-video');
+    expect(wrapper.findAll('.qs-media-gallery > .qs-video-media-item')).toHaveLength(2);
+    expect(wrapper.findAll('.qs-media-gallery .qs-video-play-badge')).toHaveLength(2);
+    expect(wrapper.findAll('.qs-media-gallery img').map(img => img.attributes('src'))).toEqual([
+      'https://example.com/first.jpg', 'https://example.com/second.jpg',
+    ]);
+    expect(wrapper.findAll('.qs-media-gallery .qs-video-duration-badge').map(badge => badge.text())).toEqual(['0:12', '1:23']);
+    wrapper.unmount();
+  });
+
   describe('1. 基础 DOM 结构与元数据渲染', () => {
     it('正确渲染卡片作者名、Title、Favicon 与正文段落结构', () => {
       const wrapper = mount(ShareCard, {

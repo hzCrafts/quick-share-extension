@@ -86,6 +86,61 @@ describe('XAdapter 结构解析与数据提取测试', () => {
       expect(post?.media).toBeUndefined();
     });
 
+    const video = (id: string, duration: string) => `<div data-testid="videoComponent"><div data-testid="videoPlayer"><video poster="https://pbs.twimg.com/amplify_video_thumb/${id}/img/cover.jpg"></video><span>${duration}</span></div></div>`;
+    const tweetWithMedia = (media: string) => `<article data-testid="tweet">
+      <div data-testid="User-Name"><a href="/author">Author</a></div>
+      <div data-testid="tweetText">Two videos</div>${media}
+      <a href="/author/status/123"><time>Oct 16</time></a>
+    </article>`;
+
+    it('extracts both videos under a shared placement wrapper exactly once and in order', async () => {
+      document.body.innerHTML = tweetWithMedia(`<div data-testid="placementTracking">${video('first', '0:12')}${video('second', '1:23')}</div>`);
+      const videos = document.querySelectorAll('video');
+      Object.defineProperties(videos[0], { videoWidth: { value: 1920 }, videoHeight: { value: 1080 } });
+      Object.defineProperties(videos[1], { videoWidth: { value: 1080 }, videoHeight: { value: 1920 } });
+      const post = await adapter.extract(document.querySelector<HTMLElement>('article')!);
+      expect(post?.media?.map(m => m.aspectRatio)).toEqual([16 / 9, 9 / 16]);
+      expect(post?.media?.map(m => [m.type, m.posterUrl, m.duration])).toEqual([
+        ['video', 'https://pbs.twimg.com/amplify_video_thumb/first/img/cover.jpg', '0:12'],
+        ['video', 'https://pbs.twimg.com/amplify_video_thumb/second/img/cover.jpg', '1:23'],
+      ]);
+    });
+
+    it('keeps mixed media order and does not duplicate a video placeholder as a photo', async () => {
+      document.body.innerHTML = tweetWithMedia(`${video('first', '0:12')}
+        <div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/photo?name=small"></div>
+        <div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/placeholder?name=small">${video('second', '0:30')}</div>`);
+      const post = await adapter.extract(document.querySelector<HTMLElement>('article')!);
+      expect(post?.media?.map(m => m.type)).toEqual(['video', 'image', 'video']);
+      expect(post?.media?.[1]?.url).toBe('https://pbs.twimg.com/media/photo?name=large');
+    });
+
+    it('keeps multiple quoted videos separate from the main post and renders both badges', async () => {
+      document.body.innerHTML = tweetWithMedia(`${video('own', '0:05')}
+        <div role="link" data-testid="quoteTweet">
+          <div data-testid="User-Name"><a href="/quoted">Quoted author</a></div>
+          <div data-testid="tweetText">Quoted videos</div>
+          <div data-testid="placementTracking">${video('first', '0:12')}${video('second', '1:23')}</div>
+        </div>`);
+      const videos = document.querySelectorAll('video');
+      videos[1]!.getBoundingClientRect = () => ({ width: 160, height: 90 } as DOMRect);
+      videos[2]!.getBoundingClientRect = () => ({ width: 90, height: 160 } as DOMRect);
+      const post = await adapter.extract(document.querySelector<HTMLElement>('article')!);
+      expect(post?.media).toHaveLength(1);
+      expect(post?.media?.[0]?.posterUrl).toContain('/own/');
+      const quote = document.createElement('div');
+      quote.innerHTML = post?.quoteHtml || '';
+      expect(quote.querySelectorAll('.qs-video-play-badge')).toHaveLength(2);
+      expect(Array.from(quote.querySelectorAll('.qs-video-duration-badge')).map(el => el.textContent)).toEqual(['0:12', '1:23']);
+      expect(quote.querySelector('.qs-media-mosaic.qs-media-with-video')).not.toBeNull();
+      expect(quote.querySelectorAll('.qs-video-media-item')).toHaveLength(2);
+      expect((quote.querySelector('.quick-share-quote-media-grid') as HTMLElement).style.gridTemplateColumns).toBe('minmax(0, 1.7777777777777777fr) minmax(0, 0.5625fr)');
+      expect(Array.from(quote.querySelectorAll('.quick-share-quote-img')).map(el => el.getAttribute('src'))).toEqual([
+        'https://pbs.twimg.com/amplify_video_thumb/first/img/cover.jpg',
+        'https://pbs.twimg.com/amplify_video_thumb/second/img/cover.jpg',
+      ]);
+    });
+
     it('正确提取单推文作者、handle、头像、正文及规范 URL', async () => {
       document.body.innerHTML = X_TWEET_SIMPLE_HTML;
       const tweetEl = document.querySelector<HTMLElement>('article[data-testid="tweet"]')!;

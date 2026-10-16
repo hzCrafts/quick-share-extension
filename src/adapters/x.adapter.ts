@@ -1,5 +1,6 @@
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData, PostMedia } from '@/types/post';
+import { videoPairColumns } from '@/utils/media-layout';
 import { cleanShareUrl } from '@/utils/url';
 import { sanitizeHtmlForCard } from '@/utils/exporter';
 
@@ -257,49 +258,7 @@ export class XAdapter extends BaseAdapter {
       // 2. 提取当前推文自身的独立配图与视频（严格排除 Quote Tweet 原帖内的图片/视频）
       let mediaList: PostMedia[] | undefined = undefined;
       if (!selection) {
-        const quoteEl = quoteElement;
-        const list: PostMedia[] = [];
-
-        // (1) 提取推文配图
-        const photoEls = tweet.querySelectorAll<HTMLImageElement>(
-          'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"], img[src*="pbs.twimg.com/card_img/"], div[data-testid="card.wrapper"] img, [data-testid="card.layoutLarge.detail"] img'
-        );
-
-        photoEls.forEach((img) => {
-          if (quoteEl && quoteEl.contains(img)) return;
-          // 排除视频容器内的占位元素
-          if (img.closest('div[data-testid="videoComponent"], div[data-testid="videoPlayer"]')) return;
-          if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
-            let highResUrl = img.src;
-            if (highResUrl.includes('name=')) {
-              highResUrl = highResUrl.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
-            }
-            if (!list.some((m) => m.url === highResUrl)) {
-              list.push({
-                type: 'image',
-                url: highResUrl,
-              });
-            }
-          }
-        });
-
-        // (2) 提取主推文视频首屏海报（包含时长）
-        const mainVideoContainers = tweet.querySelectorAll<HTMLElement>(
-          'div[data-testid="videoComponent"], div[data-testid="videoPlayer"], video'
-        );
-        for (const videoContainer of mainVideoContainers) {
-          if (quoteEl && quoteEl.contains(videoContainer)) continue;
-          const videoInfo = this.extractVideoInfo(videoContainer.closest('div[data-testid="tweetPhoto"], div[data-testid="videoPlayer"], div[data-testid="placementTracking"]') || videoContainer);
-          if (videoInfo && !list.some((m) => m.url === videoInfo.posterUrl)) {
-            list.push({
-              type: 'video',
-              url: videoInfo.posterUrl,
-              posterUrl: videoInfo.posterUrl,
-              duration: videoInfo.duration,
-            });
-            break;
-          }
-        }
+        const list = this.extractMedia(tweet, quoteElement || undefined);
 
         if (list.length > 0) mediaList = list;
       }
@@ -662,34 +621,8 @@ export class XAdapter extends BaseAdapter {
       quoteRawText = clone.textContent?.trim() || '';
     }
 
-    // 4. 提取原帖配图 (最多支持 4 张网格)
-    const quoteImgs: string[] = [];
-    const photoEls = quoteEl.querySelectorAll<HTMLImageElement>(
-      'div[data-testid="tweetPhoto"] img'
-    );
-    photoEls.forEach((img) => {
-      // A URL preview inside the quoted tweet is not media attached to that tweet.
-      if (img.closest(LINK_CARD_SELECTOR)) return;
-      if (img.src && !img.src.includes('emoji') && !img.src.includes('profile_images')) {
-        let highResUrl = img.src;
-        if (highResUrl.includes('name=')) {
-          highResUrl = highResUrl.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
-        }
-        if (!quoteImgs.includes(highResUrl)) {
-          quoteImgs.push(highResUrl);
-        }
-      }
-    });
-
-    // Only a native video component proves that the quote contains video.
-    // Scanning the entire quote mistakes avatar/background images for a poster.
-    const quoteVideo = Array.from(quoteEl.querySelectorAll<HTMLElement>(
-      '[data-testid="videoComponent"], [data-testid="videoPlayer"], video'
-    )).find((el) => !el.closest(LINK_CARD_SELECTOR));
-    const videoMediaRoot = quoteVideo?.closest<HTMLElement>('[data-testid="tweetPhoto"], [data-testid="videoPlayer"]');
-    const quoteVideoInfo = quoteVideo
-      ? this.extractVideoInfo(videoMediaRoot && quoteEl.contains(videoMediaRoot) ? videoMediaRoot : quoteVideo)
-      : null;
+    // Use the same ordered media extraction for native quotes and main posts.
+    const quoteMedia = this.extractMedia(quoteEl, undefined, true);
 
     // 5. 组装嵌入式 Quote Tweet DOM
     let html = '<div class="quick-share-quote-tweet">';
@@ -713,24 +646,23 @@ export class XAdapter extends BaseAdapter {
       html += `<div class="quick-share-quote-text">${quoteTextHtml}</div>`;
     }
 
-    // Media
-    if (quoteImgs.length > 0) {
-      const gridClass = quoteImgs.length === 1 ? 'grid-cols-1' : `qs-media-mosaic ${quoteImgs.length === 3 ? 'qs-media-three' : quoteImgs.length === 4 ? 'qs-media-four' : quoteImgs.length > 4 ? 'qs-media-many' : ''}`;
-      html += `<div class="quick-share-quote-media-grid ${gridClass}">`;
-      quoteImgs.forEach((src) => {
-        html += `<img class="quick-share-quote-img" src="${src}" alt="media" crossorigin="anonymous" />`;
+    // Media: keep all photos/video covers in their original order.
+    if (quoteMedia.length > 0) {
+      const count = quoteMedia.length;
+      const gridClass = count === 1 ? 'grid-cols-1' : `qs-media-mosaic ${count === 3 ? 'qs-media-three' : count === 4 ? 'qs-media-four' : count > 4 ? 'qs-media-many' : ''}`;
+      const columns = videoPairColumns(quoteMedia);
+      const gridStyle = columns ? ` style="display:grid;grid-template-columns:${columns}"` : '';
+      html += `<div${gridStyle} class="quick-share-quote-media-grid ${gridClass}${quoteMedia.some(item => item.type === 'video') ? ' qs-media-with-video' : ''}">`;
+      quoteMedia.forEach((media) => {
+        if (media.type === 'video') html += '<div class="quick-share-video-container qs-video-media-item">';
+        html += `<img class="quick-share-quote-img" src="${media.posterUrl || media.url}" alt="${media.type === 'video' ? 'video thumbnail' : 'media'}" crossorigin="anonymous" />`;
+        if (media.type === 'video') {
+          html += '<div class="qs-video-play-badge"><svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z"/></svg></div>';
+          if (media.duration) html += `<div class="qs-video-duration-badge">${media.duration}</div>`;
+          html += '</div>';
+        }
       });
       html += '</div>';
-    } else if (quoteVideoInfo) {
-      html += `<div class="quick-share-quote-media-grid grid-cols-1">`;
-      html += `<div class="quick-share-video-container">`;
-      html += `<img class="quick-share-quote-img" src="${quoteVideoInfo.posterUrl}" alt="video thumbnail" crossorigin="anonymous" />`;
-      html += `<div class="qs-video-play-badge"><svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z"/></svg></div>`;
-      if (quoteVideoInfo.duration) {
-        html += `<div class="qs-video-duration-badge">${quoteVideoInfo.duration}</div>`;
-      }
-      html += `</div>`;
-      html += `</div>`;
     }
 
     html += '</div>';
@@ -744,10 +676,44 @@ export class XAdapter extends BaseAdapter {
     };
   }
 
+  /** Extract each attachment once, without letting a shared placement wrapper
+   * make all players resolve to the first video's poster. */
+  private extractMedia(root: HTMLElement, excluded?: HTMLElement, excludeLinkCards = false): PostMedia[] {
+    const videoSelector = '[data-testid="videoComponent"], [data-testid="videoPlayer"], video';
+    const photoSelector = 'div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media/"], img[src*="pbs.twimg.com/card_img/"], div[data-testid="card.wrapper"] img, [data-testid="card.layoutLarge.detail"] img';
+    const media: PostMedia[] = [];
+    const seen = new Set<string>();
+    for (const node of root.querySelectorAll<HTMLElement>(`${photoSelector}, ${videoSelector}`)) {
+      if (excluded?.contains(node) || (excludeLinkCards && node.closest(LINK_CARD_SELECTOR))) continue;
+      if (node.matches(videoSelector)) {
+        // Process the innermost marker, then find only its own player shell.
+        if (node.querySelector(videoSelector)) continue;
+        const shell = node.closest<HTMLElement>('[data-testid="videoPlayer"], [data-testid="videoComponent"]');
+        const container = shell && root.contains(shell) && shell.querySelectorAll('video').length <= 1 ? shell : node;
+        const info = this.extractVideoInfo(container);
+        if (!info || seen.has(info.posterUrl)) continue;
+        seen.add(info.posterUrl);
+        media.push({ type: 'video', url: info.posterUrl, posterUrl: info.posterUrl, duration: info.duration, aspectRatio: info.aspectRatio });
+      } else {
+        // Quoted attachments must be explicitly marked; a link preview is not a photo.
+        if (excludeLinkCards && !node.closest('[data-testid="tweetPhoto"]')) continue;
+        // Video placeholders can be siblings of the player within tweetPhoto.
+        if (node.closest(videoSelector) || node.closest('[data-testid="tweetPhoto"]')?.querySelector(videoSelector)) continue;
+        const img = node as HTMLImageElement;
+        if (!img.src || img.src.includes('emoji') || img.src.includes('profile_images')) continue;
+        const url = img.src.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
+        if (seen.has(url)) continue;
+        seen.add(url);
+        media.push({ type: 'image', url });
+      }
+    }
+    return media;
+  }
+
   /**
    * 提取视频海报 (Poster) 及视频时长
    */
-  private extractVideoInfo(container: HTMLElement): { posterUrl: string; duration?: string } | null {
+  private extractVideoInfo(container: HTMLElement): { posterUrl: string; duration?: string; aspectRatio?: number } | null {
     let posterUrl = '';
     let duration: string | undefined = undefined;
 
@@ -803,9 +769,19 @@ export class XAdapter extends BaseAdapter {
       }
     }
 
+    const posterImage = container.querySelector<HTMLImageElement>('img');
+    const bounds = (videoEl || container).getBoundingClientRect();
+    // Prefer intrinsic dimensions. Before metadata is loaded, X's player still
+    // reserves the correct media rectangle, so the two widths can be preserved.
+    const ratio = videoEl?.videoWidth && videoEl.videoHeight
+      ? videoEl.videoWidth / videoEl.videoHeight
+      : posterImage?.naturalWidth && posterImage.naturalHeight
+        ? posterImage.naturalWidth / posterImage.naturalHeight
+        : bounds?.width && bounds.height ? bounds.width / bounds.height : undefined;
     return {
       posterUrl,
       duration,
+      aspectRatio: ratio && Number.isFinite(ratio) && ratio > 0 ? ratio : undefined,
     };
   }
 

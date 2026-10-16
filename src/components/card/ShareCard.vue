@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { formatPostDate } from '@/utils/post-date';
-import type { PostData } from '@/types/post';
+import type { PostData, PostMedia } from '@/types/post';
 import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
+import { videoPairColumns } from '@/utils/media-layout';
 import { getThemeById } from '@/utils/theme-engine';
 import { prepareExcerpt } from '@/utils/excerpt';
 import ThemeOrb from '@/components/ThemeOrb.vue';
@@ -13,12 +14,18 @@ const props = defineProps<{
   customThemes?: QuickShareTheme[];
 }>();
 
-const mediaLayout = (count: number) => ({
-  'qs-media-mosaic': count > 1,
-  'qs-media-three': count === 3,
-  'qs-media-four': count === 4,
-  'qs-media-many': count > 4,
+const mediaLayout = (media: PostMedia[]) => ({
+  'qs-media-mosaic': media.length > 1,
+  'qs-media-three': media.length === 3,
+  'qs-media-four': media.length === 4,
+  'qs-media-many': media.length > 4,
+  'qs-media-with-video': media.some(item => item.type === 'video'),
 });
+
+const mediaGridStyle = (media: PostMedia[]) => media.length > 1 ? {
+  display: 'grid',
+  gridTemplateColumns: videoPairColumns(media) || `repeat(${media.length > 4 ? 3 : 2}, minmax(0, 1fr))`,
+} : undefined;
 
 const currentTheme = computed<QuickShareTheme>(() => {
   return getThemeById(props.options.themeId, props.customThemes);
@@ -397,13 +404,14 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
         <div
           v-if="!post.isExcerpt && post.media && post.media.length > 0"
           class="qs-media-gallery"
-          :class="mediaLayout(post.media.length)"
-          :style="post.media.length > 1 ? { display: 'grid', gridTemplateColumns: `repeat(${post.media.length > 4 ? 3 : 2}, minmax(0, 1fr))` } : undefined"
+          :class="mediaLayout(post.media)"
+          :style="mediaGridStyle(post.media)"
         >
           <div
             v-for="(item, idx) in post.media"
             :key="idx"
             class="qs-media-item"
+            :class="{ 'qs-video-media-item': item.type === 'video' }"
           >
             <div
               v-if="item.type === 'video'"
@@ -451,8 +459,8 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
           <div v-if="quotedPost.contentHtml" class="quick-share-rich-body" v-html="quotedPost.contentHtml" />
           <p v-else class="qs-plain-content">{{ quotedPost.content }}</p>
         </div>
-        <div v-if="quotedPost.media?.length" class="quick-share-quote-media-grid" :class="mediaLayout(quotedPost.media.length)">
-          <div v-for="(item, index) in quotedPost.media" :key="index" :class="{ 'quick-share-video-container': item.type === 'video' }">
+        <div v-if="quotedPost.media?.length" class="quick-share-quote-media-grid" :class="mediaLayout(quotedPost.media)" :style="mediaGridStyle(quotedPost.media)">
+          <div v-for="(item, index) in quotedPost.media" :key="index" :class="{ 'quick-share-video-container': item.type === 'video', 'qs-video-media-item': item.type === 'video' }">
             <img :src="item.posterUrl || item.url" class="quick-share-quote-img" alt="media" crossorigin="anonymous" />
             <template v-if="item.type === 'video'">
               <div class="qs-video-play-badge"><svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-0.5"><path d="M8 5v14l11-7z" /></svg></div>
@@ -1454,6 +1462,29 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 }
 :deep(.qs-media-many) {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Video covers keep their intrinsic ratio, including mixed landscape/portrait
+   pairs. Shared quote HTML uses the same rules during preview and export. */
+:deep(.qs-media-mosaic.qs-media-with-video) {
+  aspect-ratio: auto;
+  grid-template-rows: none;
+  align-items: start;
+}
+:deep(.qs-media-with-video > *) {
+  grid-row: auto;
+}
+:deep(.qs-media-with-video > .qs-video-media-item) {
+  height: auto;
+  aspect-ratio: auto;
+  align-self: start;
+}
+:deep(.qs-video-media-item .quick-share-video-container),
+:deep(.qs-video-media-item img) {
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  object-fit: contain;
 }
 
 /* 视频容器与播放微标 / 时长胶囊 */
