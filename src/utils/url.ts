@@ -1,3 +1,8 @@
+/** Compact footer label only; keep the original URL for all navigation/data. */
+export function formatDisplayUrl(url: string): string {
+  return url.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+}
+
 /**
  * 清洗 URL，移除各类追踪参数与冗余 query 参数，保留最核心的规范化链接
  */

@@ -1,7 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { cleanShareUrl, getHighResGoogleImageUrl } from '@/utils/url';
+import { cleanShareUrl, formatDisplayUrl, getHighResGoogleImageUrl } from '@/utils/url';
 
 describe('URL 清洗与规范化工具测试', () => {
+  describe('formatDisplayUrl', () => {
+    it.each([
+      ['https://www.zhihu.com/question/2093162256385286282/answer/2095124418427084870', 'zhihu.com/question/2093162256385286282/answer/2095124418427084870'],
+      ['http://www.example.com/article?id=42#section', 'example.com/article?id=42#section'],
+      ['https://x.com/user/status/123', 'x.com/user/status/123'],
+      ['https://mp.weixin.qq.com/s?__biz=abc&mid=123&idx=1&sn=xyz', 'mp.weixin.qq.com/s?__biz=abc&mid=123&idx=1&sn=xyz'],
+      ['HTTPS://WWW.EXAMPLE.COM/a%2Fb?next=https://www.example.com', 'EXAMPLE.COM/a%2Fb?next=https://www.example.com'],
+      ['example.com/article', 'example.com/article'],
+      ['', ''],
+    ])('formats %s without changing the path, query or fragment', (input, expected) => {
+      expect(formatDisplayUrl(input)).toBe(expected);
+    });
+  });
+
   describe('cleanShareUrl', () => {
     it('清洗知乎链接中的所有营销追踪与会话参数', () => {
       const raw = 'https://www.zhihu.com/question/12345/answer/67890?utm_source=wechat&utm_medium=social&utm_campaign=share&utm_term=qa';

@@ -243,7 +243,8 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
       expect(wrapper.get('.qs-reply-quote time').attributes('datetime')).toBe(root.createdAt);
       expect(wrapper.get('.qs-reply-quote img').attributes('src')).toBe('https://example.com/poster.png');
       expect(wrapper.get('.qs-reply-quote .qs-video-duration-badge').text()).toBe('1:20');
-      expect(wrapper.get('.qs-footer-url').text()).toBe(samplePost.url);
+      expect(wrapper.get('.qs-footer-url').text()).toBe('zhihu.com/question/123/answer/456');
+      expect(wrapper.get('.qs-footer-url').attributes('title')).toBe(samplePost.url);
     });
     it('does not attach root to excerpts or secondary replies', () => {
       for (const extra of [{ isExcerpt: true }, { contextThread: { rootPost: root, parentPost: root } }]) {

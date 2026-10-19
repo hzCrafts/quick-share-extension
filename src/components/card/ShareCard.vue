@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { formatDisplayUrl } from '@/utils/url';
 import { formatPostDate } from '@/utils/post-date';
 import type { PostData, PostMedia } from '@/types/post';
 import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
@@ -475,8 +476,8 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
         v-if="post.url && !isAiPlatform"
         class="qs-card-footer"
       >
-        <div class="qs-footer-url">
-          {{ post.url }}
+        <div class="qs-footer-url" :title="post.url">
+          {{ formatDisplayUrl(post.url) }}
         </div>
         <div v-if="platformConfig.faviconUrl" class="qs-platform-badge" :title="platformConfig.name">
           <img
