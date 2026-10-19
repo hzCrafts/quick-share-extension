@@ -9,6 +9,9 @@ const LINK_CARD_SELECTOR = '[data-testid="card.wrapper"], [data-testid="card.lay
 export class XAdapter extends BaseAdapter {
   readonly platform = 'x';
   readonly name = 'X';
+  private cachedFocalId: string | null = null;
+  private cachedFocalHtml = '';
+  private cachedFocalPost: Promise<PostData | null> | null = null;
   private observer: MutationObserver | null = null;
   private onShareCallback: OnShareTrigger | null = null;
 
@@ -35,6 +38,9 @@ export class XAdapter extends BaseAdapter {
       this.observer.disconnect();
       this.observer = null;
     }
+    this.cachedFocalId = null;
+    this.cachedFocalHtml = '';
+    this.cachedFocalPost = null;
     document.querySelectorAll('.quick-share-x-wrapper').forEach((el) => el.remove());
   }
 
@@ -54,8 +60,29 @@ export class XAdapter extends BaseAdapter {
     return entity.querySelector<HTMLElement>('div[data-testid="tweetText"]') || entity;
   }
 
+  /** Keep only this detail page's loaded post when X virtualizes it away. */
+  private rememberFocalPost(tweets: HTMLElement[]): void {
+    const id = this.getFocalTweetId();
+    if (id !== this.cachedFocalId) {
+      this.cachedFocalId = id;
+      this.cachedFocalHtml = '';
+      this.cachedFocalPost = null;
+    }
+    if (!id) return;
+    const root = tweets.find(tweet => this.extractTweetId(tweet) === id);
+    if (!root || this.isPromotedTweet(root)) return;
+    // Exclude our injected button so injection does not invalidate the snapshot.
+    const clone = root.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.quick-share-x-wrapper').forEach(el => el.remove());
+    const html = clone.innerHTML;
+    if (html === this.cachedFocalHtml) return;
+    this.cachedFocalHtml = html;
+    this.cachedFocalPost = this.extract(root, undefined, true);
+  }
+
   private scanAndInject(): void {
     const tweets = document.querySelectorAll<HTMLElement>('article[data-testid="tweet"]');
+    this.rememberFocalPost(Array.from(tweets));
     tweets.forEach((tweet) => {
       const actionGroup = tweet.querySelector<HTMLElement>('div[role="group"]');
       if (!actionGroup || actionGroup.querySelector('.quick-share-x-wrapper')) return;
@@ -333,7 +360,7 @@ export class XAdapter extends BaseAdapter {
   }
 
   /**
-   * 提取推文正文上方的 "Replying to @xxx" 或正文开头的被回复目标 Handles
+   * 提取正文之外的回复目标，正文提及不能证明父子关系
    */
   extractRepliedHandles(tweet: HTMLElement): string[] {
     const handles: string[] = [];
@@ -342,6 +369,7 @@ export class XAdapter extends BaseAdapter {
     // 1. 扫描推文内所有用户链接 (排除操作栏和头像)
     const allLinks = Array.from(tweet.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'));
     for (const a of allLinks) {
+      if (a.closest('[data-testid="tweetText"], [data-testid="quoteTweet"], [role="link"][tabindex="0"]')) continue;
       if (a.closest('div[role="group"]') || a.closest('div[data-testid="Tweet-User-Avatar"]')) continue;
       if (userNameEl && userNameEl.contains(a)) continue;
 
@@ -360,21 +388,6 @@ export class XAdapter extends BaseAdapter {
       }
     }
 
-    // 2. 扫描推文正文文本前 60 个字符中的 @ 提及
-    const tweetTextEl = tweet.querySelector('div[data-testid="tweetText"]');
-    if (tweetTextEl) {
-      const textHead = tweetTextEl.textContent?.slice(0, 80) || '';
-      const matches = textHead.match(/@[a-zA-Z0-9_]+/g);
-      if (matches) {
-        for (const m of matches) {
-          const clean = m.toLowerCase();
-          if (!handles.includes(clean)) {
-            handles.push(clean);
-          }
-        }
-      }
-    }
-
     return handles;
   }
 
@@ -382,10 +395,11 @@ export class XAdapter extends BaseAdapter {
    * 检查推文节点是否存在垂直 Thread 连接线 (视觉连线)
    */
   hasThreadConnector(tweet: HTMLElement, position: 'top' | 'bottom'): boolean {
-    const avatarCol = tweet.querySelector('div[data-testid="Tweet-User-Avatar"]')?.parentElement;
-    if (!avatarCol) return false;
+    const avatar = tweet.querySelector<HTMLElement>('div[data-testid="Tweet-User-Avatar"]');
+    const avatarCol = avatar?.parentElement;
+    if (!avatarCol || !avatar) return false;
 
-    const lineCandidates = avatarCol.querySelectorAll<HTMLElement>('div');
+    const lineCandidates = avatarCol.querySelectorAll<HTMLElement>('div, span');
     for (const el of lineCandidates) {
       if (el.querySelector('img')) continue;
       const style = typeof window !== 'undefined' && window.getComputedStyle ? window.getComputedStyle(el) : null;
@@ -394,7 +408,17 @@ export class XAdapter extends BaseAdapter {
       const height = parseFloat(style.height);
       const bg = style.backgroundColor;
       if (width >= 1 && width <= 6 && height >= 6 && bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
-        return true;
+        const lineRect = el.getBoundingClientRect();
+        const avatarRect = avatar.getBoundingClientRect();
+        if (lineRect.height > 0 && avatarRect.height > 0) {
+          if (position === 'top' && lineRect.bottom <= avatarRect.top + 1) return true;
+          if (position === 'bottom' && lineRect.top >= avatarRect.bottom - 1) return true;
+        } else {
+          // DOM-order fallback for unlaid-out/detached nodes.
+          const order = el.compareDocumentPosition(avatar);
+          if (position === 'top' && (order & Node.DOCUMENT_POSITION_FOLLOWING)) return true;
+          if (position === 'bottom' && (order & Node.DOCUMENT_POSITION_PRECEDING)) return true;
+        }
       }
     }
     return false;
@@ -440,24 +464,23 @@ export class XAdapter extends BaseAdapter {
   /**
    * 严格验证 candidate 上级推文是否为当前推文真实的直接父回复
    */
-  private isValidParentTweet(currentTweet: HTMLElement, parentCandidate: HTMLElement, rootTweet: HTMLElement): boolean {
+  private isValidParentTweet(currentTweet: HTMLElement, parentCandidate: HTMLElement, rootHandle: string): boolean {
     if (this.isPromotedTweet(parentCandidate)) return false;
 
     const parentTweetId = this.extractTweetId(parentCandidate);
-    const rootTweetId = this.extractTweetId(rootTweet);
-    if (!parentTweetId || (rootTweetId && parentTweetId === rootTweetId)) {
-      return false;
-    }
-
+    if (!parentTweetId) return false;
     const parentHandle = this.extractAuthorHandle(parentCandidate).toLowerCase();
-    const rootHandle = this.extractAuthorHandle(rootTweet).toLowerCase();
+    rootHandle = rootHandle.toLowerCase();
     const repliedHandles = this.extractRepliedHandles(currentTweet);
+
+    // An explicit reply to the root is not a reply to its neighboring sibling.
+    if (rootHandle && repliedHandles.includes(rootHandle) && !repliedHandles.includes(parentHandle)) return false;
 
     // 1. 如果当前推文明确包含指向 parentHandle 的回复或提及标记
     if (parentHandle && repliedHandles.some((h) => h === parentHandle || h === parentHandle.replace(/^@/, ''))) {
       if (parentHandle === rootHandle) {
         // 同作者多条回复时需确认连线
-        return this.hasThreadConnector(currentTweet, 'top') || this.hasThreadConnector(parentCandidate, 'bottom') || this.isSameConversationContainer(currentTweet, parentCandidate);
+        return (this.hasThreadConnector(currentTweet, 'top') && this.hasThreadConnector(parentCandidate, 'bottom')) || this.isSameConversationContainer(currentTweet, parentCandidate);
       }
       return true;
     }
@@ -466,7 +489,7 @@ export class XAdapter extends BaseAdapter {
     if (this.isSameConversationContainer(currentTweet, parentCandidate)) {
       return true;
     }
-    if (this.hasThreadConnector(currentTweet, 'top') || this.hasThreadConnector(parentCandidate, 'bottom')) {
+    if (this.hasThreadConnector(currentTweet, 'top') && this.hasThreadConnector(parentCandidate, 'bottom')) {
       return true;
     }
 
@@ -484,16 +507,41 @@ export class XAdapter extends BaseAdapter {
       const focalTweetId = this.getFocalTweetId();
 
       // 只关联详情页已加载的主帖；首页/搜索结果不能按 DOM 顺序猜测关系。
-      if (!focalTweetId || !currentTweetId || currentTweetId === focalTweetId) {
+      if (!focalTweetId || !currentTweetId) {
         return undefined;
       }
 
+      this.rememberFocalPost(Array.from(document.querySelectorAll<HTMLElement>('article[data-testid="tweet"]')));
       // 过滤掉所有广告推文
       const allTweets = Array.from(document.querySelectorAll<HTMLElement>('article[data-testid="tweet"]'))
         .filter((t) => !this.isPromotedTweet(t));
 
       const currentIndex = allTweets.indexOf(tweet);
       if (currentIndex < 0) return undefined;
+
+      // The focal URL may itself be a reply. X renders its loaded ancestors
+      // above it; require a conversation container or connectors at BOTH ends,
+      // rather than interpreting any earlier tweet/mention as its parent.
+      if (currentTweetId === focalTweetId) {
+        const ancestors: HTMLElement[] = [];
+        let child = tweet;
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          const candidate = allTweets[i]!;
+          const connected = this.isSameConversationContainer(child, candidate) || (
+            this.hasThreadConnector(child, 'top') && this.hasThreadConnector(candidate, 'bottom')
+          );
+          if (!connected) break;
+          ancestors.push(candidate);
+          child = candidate;
+        }
+        if (!ancestors.length) return undefined;
+        const root = ancestors[ancestors.length - 1]!;
+        const [rootPost, parentPost] = await Promise.all([
+          this.extract(root, undefined, true),
+          ancestors.length > 1 ? this.extract(ancestors[0]!, undefined, true) : Promise.resolve(null),
+        ]);
+        return rootPost ? { rootPost, parentPost: parentPost || undefined } : undefined;
+      }
 
       // 2. 精准定位真实主帖 (Root Tweet)：在 DOM 列表中查找匹配 focalTweetId 的推文
       let rootTweet: HTMLElement | null = null;
@@ -502,9 +550,14 @@ export class XAdapter extends BaseAdapter {
       }
 
       // 主帖必须已加载且位于当前评论之前，不能引用自己或后续推荐。
-      if (!rootTweet || allTweets.indexOf(rootTweet) >= currentIndex) {
+      if (rootTweet && allTweets.indexOf(rootTweet) >= currentIndex) {
         return undefined;
       }
+
+      const rootPost = rootTweet
+        ? await this.extract(rootTweet, undefined, true)
+        : await this.cachedFocalPost;
+      if (!rootPost) return undefined;
 
       // 3. 寻找并严格验证直接父级回复 (Parent Tweet)
       let parentCandidate: HTMLElement | null = null;
@@ -515,19 +568,15 @@ export class XAdapter extends BaseAdapter {
         }
       }
 
-      const isSameAsRoot = Boolean(rootTweet && parentCandidate && parentCandidate === rootTweet);
+      const isSameAsRoot = Boolean(parentCandidate && this.extractTweetId(parentCandidate) === focalTweetId);
       const isParentValid = Boolean(
         parentCandidate &&
         !isSameAsRoot &&
-        rootTweet &&
-        this.isValidParentTweet(tweet, parentCandidate, rootTweet)
+        this.isValidParentTweet(tweet, parentCandidate, rootPost.author.handle || '')
       );
 
-      // 异步提取上级与根推文 (使用 skipContext = true 避免循环递归)
-      const [parentPost, rootPost] = await Promise.all([
-        isParentValid && parentCandidate ? this.extract(parentCandidate, undefined, true) : Promise.resolve(null),
-        rootTweet ? this.extract(rootTweet, undefined, true) : Promise.resolve(null),
-      ]);
+      const parentPost = isParentValid && parentCandidate
+        ? await this.extract(parentCandidate, undefined, true) : null;
 
       if (!parentPost && !rootPost) return undefined;
 

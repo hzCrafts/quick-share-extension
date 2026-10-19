@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { XAdapter } from '@/adapters/x.adapter';
 import { X_TWEET_SIMPLE_HTML, X_TWEET_MULTILINE_IMAGES_HTML } from '../fixtures/x.fixture';
 
@@ -18,6 +18,8 @@ describe('XAdapter 结构解析与数据提取测试', () => {
     const post = await adapter.extract(tweets[1]);
     expect(post?.contextThread).toBeUndefined();
   });
+
+  afterEach(() => adapter.stop());
 
   describe('1. 路由与 URL 匹配', () => {
     it('匹配 x.com 和 twitter.com', () => {
@@ -273,6 +275,83 @@ describe('XAdapter 结构解析与数据提取测试', () => {
 
       // 验证由于当前评论直接回复 @elonmusk，上方的 User 1 兄弟评论被正确排除（parentPost 为 undefined）
       expect(postData?.contextThread?.parentPost).toBeUndefined();
+    });
+
+    const contextTweet = (id: string, author: string, text: string, connector = false) => `
+      <article data-testid="tweet" id="tweet-${id}">
+        <div>${connector ? '<div style="width:2px;height:24px;background-color:rgb(50,50,50)"></div>' : ''}<div data-testid="Tweet-User-Avatar"><img src="https://example.com/avatar.jpg"></div>${connector ? '<div style="width:2px;height:24px;background-color:rgb(50,50,50)"></div>' : ''}</div>
+        <div data-testid="User-Name"><a href="/${author}">${author}</a></div>
+        <div data-testid="tweetText">${text}</div>
+        <a href="/${author}/status/${id}"><time>Oct 19</time></a>
+      </article>`;
+
+    it('includes the loaded original post when opening a first-level reply URL directly', async () => {
+      Object.defineProperty(window, 'location', { value: new URL('https://x.com/Stan82Stan/status/2112091361142813090?s=20'), writable: true });
+      document.body.innerHTML = contextTweet('2000', 'elonmusk', 'Next year, I will give one of my SpaceX shares to every kid in America.', true)
+        + contextTweet('2112091361142813090', 'Stan82Stan', 'Now all left wingers will be squealing…', true);
+      const post = await adapter.extract(document.getElementById('tweet-2112091361142813090')!);
+      expect(post?.contextThread?.rootPost?.author.name).toBe('elonmusk');
+      expect(post?.contextThread?.rootPost?.content).toContain('SpaceX shares');
+      expect(post?.contextThread?.parentPost).toBeUndefined();
+      expect(post?.url).toBe('https://x.com/Stan82Stan/status/2112091361142813090');
+    });
+
+    it('does not treat an unrelated earlier post as the parent of the focal tweet', async () => {
+      document.body.innerHTML = contextTweet('900', 'other', 'Unrelated post', true)
+        + contextTweet('1000', 'elonmusk', 'A new standalone post mentioning @other');
+      expect((await adapter.extract(document.getElementById('tweet-1000')!))?.contextThread).toBeUndefined();
+    });
+
+    it('preserves the distinction between a first-level reply and a deeper focal reply', async () => {
+      Object.defineProperty(window, 'location', { value: new URL('https://x.com/child/status/1002'), writable: true });
+      document.body.innerHTML = contextTweet('1000', 'root', 'Original post', true)
+        + contextTweet('1001', 'parent', 'First reply', true) + contextTweet('1002', 'child', 'Second reply', true);
+      const post = await adapter.extract(document.getElementById('tweet-1002')!);
+      expect(post?.contextThread?.rootPost?.content).toBe('Original post');
+      expect(post?.contextThread?.parentPost?.content).toBe('First reply');
+    });
+
+    it('retains the loaded focal post after X removes it while scrolling through replies', async () => {
+      Object.defineProperty(window, 'location', { value: new URL('https://x.com/elonmusk/status/2112089556615123114'), writable: true });
+      document.body.innerHTML = contextTweet('2112089556615123114', 'elonmusk', 'Next year, I will give one of my SpaceX shares to every kid in America.')
+        + contextTweet('2112091361142813090', 'Stan82Stan', 'Now all left wingers will be squealing…');
+      adapter.start(() => {});
+      document.getElementById('tweet-2112089556615123114')!.remove();
+      const post = await adapter.extract(document.getElementById('tweet-2112091361142813090')!);
+      expect(post?.contextThread?.rootPost?.content).toContain('SpaceX shares');
+      expect(post?.contextThread?.rootPost?.url).toBe('https://x.com/elonmusk/status/2112089556615123114');
+      expect(post?.contextThread?.parentPost).toBeUndefined();
+    });
+
+    it('clears the cached root when navigating to another detail page', async () => {
+      document.body.innerHTML = contextTweet('1000', 'elonmusk', 'Old root');
+      adapter.start(() => {});
+      Object.defineProperty(window, 'location', { value: new URL('https://x.com/other/status/2000'), writable: true });
+      document.body.innerHTML = contextTweet('2001', 'reply', 'Reply on another page');
+      expect((await adapter.extract(document.getElementById('tweet-2001')!))?.contextThread).toBeUndefined();
+    });
+
+    it('does not treat a sibling comment with its own downward thread as the parent', async () => {
+      const line = '<div style="width:2px;height:24px;background-color:rgb(50,50,50)"></div>';
+      document.body.innerHTML = contextTweet('1000', 'elonmusk', 'Root post')
+        + contextTweet('1001', 'sibling', 'Other first-level comment')
+        + contextTweet('1002', 'Stan82Stan', 'First-level comment');
+      const siblingAvatar = document.querySelector('[id="tweet-1001"] [data-testid="Tweet-User-Avatar"]')!;
+      siblingAvatar.parentElement!.appendChild(document.createRange().createContextualFragment(line));
+      const post = await adapter.extract(document.getElementById('tweet-1002')!);
+      expect(adapter.hasThreadConnector(document.getElementById('tweet-1001')!, 'top')).toBe(false);
+      expect(adapter.hasThreadConnector(document.getElementById('tweet-1001')!, 'bottom')).toBe(true);
+      expect(post?.contextThread?.parentPost).toBeUndefined();
+      expect(post?.contextThread?.rootPost?.content).toBe('Root post');
+    });
+
+    it('does not use an inline mention of a sibling as proof of replying to it', async () => {
+      document.body.innerHTML = contextTweet('1000', 'elonmusk', 'Root post')
+        + contextTweet('1001', 'sibling', 'Other first-level comment')
+        + contextTweet('1002', 'Stan82Stan', 'I agree with @sibling');
+      const post = await adapter.extract(document.getElementById('tweet-1002')!);
+      expect(post?.contextThread?.parentPost).toBeUndefined();
+      expect(post?.contextThread?.rootPost?.content).toBe('Root post');
     });
 
     it('当点击主帖 (Focal Tweet) 本身时，不生成任何向上上下文 (contextThread 为 undefined)', async () => {
