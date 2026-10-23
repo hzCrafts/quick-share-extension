@@ -838,6 +838,12 @@ export class XAdapter extends BaseAdapter {
    * 将 X (Twitter) 原生文本节点中的 \n 换行符显式转换为 <br />，确保排版换行 100% 保真
    */
   private convertNewlinesToBr(root: HTMLElement): void {
+    // Draft.js div paragraphs lose their host stylesheet in the card. Mark
+    // leaf paragraphs for the shared paragraph CSS without changing their DOM.
+    root.querySelectorAll<HTMLElement>('.public-DraftStyleDefault-block').forEach(block => {
+      if (block.closest('pre, code, li') || block.querySelector('p, div, ul, ol, figure, img, video')) return;
+      block.classList.add('quick-share-article-paragraph');
+    });
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const textNodes: Text[] = [];
     while (walker.nextNode()) {
@@ -849,7 +855,7 @@ export class XAdapter extends BaseAdapter {
 
       // HTML 块之间的缩进不是正文换行；行内元素之间的换行仍需保留。
       if (node.nodeValue.trim() === '') {
-        const blockTags = /^(P|SECTION|ARTICLE|FIGURE|FIGCAPTION|UL|OL|LI|BLOCKQUOTE|TABLE|H[1-6]|PRE|HR)$/;
+        const blockTags = /^(P|DIV|SECTION|ARTICLE|FIGURE|FIGCAPTION|UL|OL|LI|BLOCKQUOTE|TABLE|H[1-6]|PRE|HR)$/;
         const isBlock = (sibling: Node | null) => sibling instanceof Element && blockTags.test(sibling.tagName);
         if (!node.previousSibling || !node.nextSibling || isBlock(node.previousSibling) || isBlock(node.nextSibling)) {
           node.remove();

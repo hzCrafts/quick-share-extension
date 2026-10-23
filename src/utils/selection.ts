@@ -21,6 +21,58 @@ export function getSelectionEntity(adapter: BaseAdapter, range: Range): HTMLElem
   return entity;
 }
 
+/** Host styles do not cross the card's Shadow DOM. Keep vertical flow on
+ * both paragraphs and their wrappers: editors can put spacing on either. */
+function preserveParagraphLayout(source: HTMLElement, clone: HTMLElement): void {
+  if (!source.matches('p, div, section, h1, h2, h3, h4, h5, h6, blockquote')) return;
+  if (source.closest('pre, code, table')) return;
+  const style = window.getComputedStyle(source);
+  const column = style.display === 'flex' && style.flexDirection === 'column';
+  if (!['block', 'flow-root'].includes(style.display) && !column) return;
+  clone.style.display = style.display;
+  for (const prop of ['margin-top', 'margin-bottom', 'padding-top', 'padding-bottom']) {
+    const value = style.getPropertyValue(prop);
+    if (/^\d*\.?\d+px$/.test(value)) clone.style.setProperty(prop, value);
+  }
+  if (column) {
+    clone.style.flexDirection = 'column';
+    const gap = style.rowGap;
+    if (/^\d*\.?\d+px$/.test(gap)) clone.style.rowGap = gap;
+  }
+  // Empty editor blocks can represent a blank line using height rather than br.
+  // Never carry fixed heights onto text/media, where card wrapping differs.
+  if (!source.textContent?.trim() && !source.querySelector('img, video, svg, iframe, canvas')) {
+    for (const prop of ['height', 'min-height']) {
+      const value = style.getPropertyValue(prop);
+      if (/^\d*\.?\d+px$/.test(value) && parseFloat(value) > 0) clone.style.setProperty(prop, value);
+    }
+  }
+}
+
+function cloneRangeWithParagraphLayout(range: Range): DocumentFragment {
+  const fragment = range.cloneContents();
+  const common = range.commonAncestorContainer;
+  if (!(common instanceof HTMLElement)) return fragment;
+  const sources = Array.from(common.querySelectorAll<HTMLElement>('*')).filter(el => range.intersectsNode(el));
+  const clones = Array.from(fragment.querySelectorAll<HTMLElement>('*'));
+  // cloneContents omits the common ancestor but preserves the descendant order.
+  if (sources.length === clones.length && sources.every((source, i) => source.tagName === clones[i].tagName)) {
+    sources.forEach((source, i) => preserveParagraphLayout(source, clones[i]));
+  }
+  // A shared flex parent is omitted by cloneContents, taking its paragraph gap
+  // with it. Restore only its flow, not the article's outer padding or margins.
+  const style = window.getComputedStyle(common);
+  if (style.display === 'flex' && style.flexDirection === 'column' && parseFloat(style.rowGap) > 0) {
+    const flow = document.createElement('div');
+    flow.style.display = 'flex';
+    flow.style.flexDirection = 'column';
+    flow.style.rowGap = style.rowGap;
+    flow.appendChild(fragment);
+    fragment.appendChild(flow);
+  }
+  return fragment;
+}
+
 /** Shared range splitting; adapters only interpret source metadata/content. */
 export async function extractSelection(adapter: BaseAdapter, range: Range): Promise<PostData | null> {
   const entityEl = getSelectionEntity(adapter, range);
@@ -44,7 +96,7 @@ export async function extractSelection(adapter: BaseAdapter, range: Range): Prom
   const endBlock = findBlock(range.endContainer);
   const selectedFragment = () => {
     const container = document.createElement('div');
-    let fragment: Node = range.cloneContents();
+    let fragment: Node = cloneRangeWithParagraphLayout(range);
     // cloneContents omits a shared inline ancestor, e.g. selecting text inside <strong>.
     let ancestor = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
       ? range.commonAncestorContainer.parentElement : range.commonAncestorContainer as HTMLElement;
@@ -137,6 +189,7 @@ export async function extractSelection(adapter: BaseAdapter, range: Range): Prom
       }
 
       const wrapper = document.createElement(tagName);
+      preserveParagraphLayout(startBlock, wrapper);
       wrapper.className = startBlock.className;
       wrapper.innerHTML = inner;
       selectedHtml = wrapper.outerHTML;
@@ -206,6 +259,7 @@ export async function extractSelection(adapter: BaseAdapter, range: Range): Prom
     try {
       if (startBlock === endBlock && startBlock !== contentRoot) {
         const wrapper = startBlock.cloneNode(false) as HTMLElement;
+        preserveParagraphLayout(startBlock, wrapper);
         wrapper.append(...Array.from(selectedFragment().childNodes));
         selectedHtml = wrapper.outerHTML;
       } else {

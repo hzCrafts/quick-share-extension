@@ -1033,7 +1033,8 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   color: inherit;
 }
 
-:deep(.quick-share-rich-body p) {
+:deep(.quick-share-rich-body p),
+:deep(.quick-share-rich-body .quick-share-article-paragraph) {
   margin-top: 0;
   margin-bottom: 0.85em;
   word-break: break-word;
@@ -1062,6 +1063,9 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   margin-bottom: 0;
 }
 
+/* The quote owns its 18px separation. Keep the normal 24px content margin
+   only when attachments sit between the text and the native quote. */
+.has-native-quote .qs-card-content:has(+ .qs-native-quote),
 .has-reply-quote .qs-card-content,
 .has-reply-quote .qs-media-gallery {
   margin-bottom: 0;

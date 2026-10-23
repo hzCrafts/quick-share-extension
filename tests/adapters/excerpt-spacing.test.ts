@@ -47,4 +47,17 @@ describe('Mixed text/image excerpt spacing across dedicated adapters', () => {
     expect(output.textContent).toBe('FirstlineLast');
   });
 
+  it('retains X Article Draft.js paragraph boundaries and bold formatting', async () => {
+    document.body.innerHTML = X_TWEET_SIMPLE_HTML;
+    const post = await new XAdapter().extract(document.querySelector<HTMLElement>('article')!, {
+      selectedText: 'First paragraph\n\nSecond paragraph',
+      selectedHtml: '<div data-block="true"><div class="public-DraftStyleDefault-block"><span>First paragraph</span></div></div><div data-block="true"><div class="public-DraftStyleDefault-block"><strong>Second paragraph</strong></div></div>',
+    });
+    const output = document.createElement('div'); output.innerHTML = prepareExcerpt(post!.contentHtml!).content;
+    expect(output.querySelectorAll('.quick-share-article-paragraph')).toHaveLength(2);
+    expect(output.querySelectorAll('[data-block]')).toHaveLength(2);
+    expect(output.querySelector('strong')?.textContent).toBe('Second paragraph');
+    expect(output.querySelectorAll('br')).toHaveLength(0);
+  });
+
 });
