@@ -105,7 +105,7 @@ export interface CardRenderOptions {
   showWatermark: boolean;
   showStats: boolean;
   fontScale: number; // 0.9, 1.0, 1.1, 1.2
-  cardRadius: number; // 8, 16, 24
+  cardRadius: number; // 主卡片圆角，默认 24px
   authorAvatarRadius: 'rounded-full' | 'rounded-xl' | 'rounded-none';
   aspectRatio: 'auto' | '1:1' | '4:3' | '16:9';
 }
@@ -161,24 +161,24 @@ export const BUILTIN_THEMES: Record<BuiltinCardThemeId, QuickShareTheme> = {
         background: 'rgba(255, 255, 255, 0.03)',
         color: '#f4f4f5',
         border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '8px',
+        borderRadius: '12px',
       },
       promptCard: {
         background: 'linear-gradient(180deg, rgba(39, 39, 42, 0.70) 0%, rgba(24, 24, 27, 0.80) 100%)',
         border: '1px solid rgba(255, 255, 255, 0.09)',
-        borderRadius: '14px',
+        borderRadius: '18px',
         headerColor: '#fb923c',
       },
       quoteBlock: {
         background: 'rgba(249, 115, 22, 0.06)',
         borderColor: '#f97316',
-        borderRadius: '0 8px 8px 0',
+        borderRadius: '0 12px 12px 0',
       },
       codeBlock: {
         background: '#0d0d11',
         color: '#f4f4f5',
         border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '8px',
+        borderRadius: '12px',
       },
       table: {
         borderColor: 'rgba(255, 255, 255, 0.12)',
@@ -207,9 +207,9 @@ export const BUILTIN_THEMES: Record<BuiltinCardThemeId, QuickShareTheme> = {
     },
     typography: { fontFamily: 'sans', textPrimary: '#192330', textSecondary: '#536479', textMuted: '#718095' },
     components: {
-      promptCard: { background: 'rgba(255,255,255,.4)', border: '1px solid rgba(133,159,193,.18)', borderRadius: '12px', headerColor: '#597b9b' },
-      quoteBlock: { background: 'rgba(158,194,223,.09)', borderColor: '#9bbbd4', borderRadius: '0 6px 6px 0' },
-      codeBlock: { background: '#eaf0f8', color: '#25384b', border: '1px solid #d6e1ee', borderRadius: '8px' },
+      promptCard: { background: 'rgba(255,255,255,.4)', border: '1px solid rgba(133,159,193,.18)', borderRadius: '18px', headerColor: '#597b9b' },
+      quoteBlock: { background: 'rgba(158,194,223,.09)', borderColor: '#9bbbd4', borderRadius: '0 10px 10px 0' },
+      codeBlock: { background: '#eaf0f8', color: '#25384b', border: '1px solid #d6e1ee', borderRadius: '12px' },
       table: { borderColor: '#d5dfeb', headerBg: '#e9eff7', rowEvenBg: 'rgba(255,255,255,.35)' },
       footer: { textColor: '#8794a7', borderTop: '1px solid rgba(117,139,166,.22)' },
     },
@@ -232,9 +232,9 @@ export const BUILTIN_THEMES: Record<BuiltinCardThemeId, QuickShareTheme> = {
     },
     typography: { fontFamily: 'serif', textPrimary: '#292824', textSecondary: '#8c8881', textMuted: '#a49d93' },
     components: {
-      promptCard: { background: '#f0ece4', border: '1px solid #e3ddd3', borderRadius: '8px', headerColor: '#a56b60' },
-      quoteBlock: { background: 'rgba(185,128,113,.05)', borderColor: '#bd8779', borderRadius: '0 4px 4px 0' },
-      codeBlock: { background: '#eeebe4', color: '#37352f', border: '1px solid #ded8ce', borderRadius: '6px' },
+      promptCard: { background: '#f0ece4', border: '1px solid #e3ddd3', borderRadius: '14px', headerColor: '#a56b60' },
+      quoteBlock: { background: 'rgba(185,128,113,.05)', borderColor: '#bd8779', borderRadius: '0 8px 8px 0' },
+      codeBlock: { background: '#eeebe4', color: '#37352f', border: '1px solid #ded8ce', borderRadius: '10px' },
       table: { borderColor: '#ded8ce', headerBg: '#eeebe4', rowEvenBg: '#f5f2ec' },
       footer: { textColor: '#938d86', borderTop: '1px solid #dcd6ce' },
     },

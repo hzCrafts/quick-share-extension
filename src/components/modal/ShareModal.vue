@@ -103,7 +103,7 @@ const options = reactive<CardRenderOptions>({
   showWatermark: true,
   showStats: false,
   fontScale: 1.0,
-  cardRadius: 16,
+  cardRadius: 24,
   authorAvatarRadius: 'rounded-full',
   aspectRatio: 'auto',
 });
@@ -646,6 +646,7 @@ watch(
   pointer-events: auto;
 }
 .editor {
+  --editor-corner-radius: 24px;
   position: relative;
   width: 832px;
   container-type: inline-size;
@@ -664,7 +665,7 @@ watch(
     ),
     var(--editor-bg);
   border: 0;
-  border-radius: 24px;
+  border-radius: var(--editor-corner-radius);
   backdrop-filter: blur(44px) saturate(1.55);
   -webkit-backdrop-filter: blur(44px) saturate(1.55);
   box-shadow:
@@ -874,7 +875,14 @@ watch(
     padding: 14px;
   }
   .editor {
-    border-radius: 18px;
+    --editor-corner-radius: 18px;
+  }
+}
+/* Clip the preview and footer together along the same continuous contour. */
+@supports (corner-shape: superellipse(1.5)) {
+  .editor {
+    border-radius: calc(var(--editor-corner-radius) * 1.35);
+    corner-shape: superellipse(1.5);
   }
 }
 .export-actions button {

@@ -223,7 +223,7 @@ function getCardTargetElement(element: HTMLElement): HTMLElement {
 /**
  * 为 Canvas 应用圆角裁剪，消除 foreignObject 渲染造成的四角白底
  */
-export function applyCanvasBorderRadius(canvas: HTMLCanvasElement, radius: number): HTMLCanvasElement {
+export function applyCanvasBorderRadius(canvas: HTMLCanvasElement, radius: number, cornerShape = 'round'): HTMLCanvasElement {
   if (radius <= 0) return canvas;
   const clippedCanvas = document.createElement('canvas');
   clippedCanvas.width = canvas.width;
@@ -232,7 +232,32 @@ export function applyCanvasBorderRadius(canvas: HTMLCanvasElement, radius: numbe
   if (!ctx) return canvas;
 
   ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') {
+  const curvature = cornerShape === 'squircle' ? 2 : Number(cornerShape.match(/^superellipse\(([\d.]+)\)$/)?.[1]);
+  if (Number.isFinite(curvature) && curvature > 1 && curvature <= 2) {
+    // Follow the CSS superellipse, including its flat tangent at each edge.
+    // Subpixel sampling keeps the clipping path smooth at Retina resolution.
+    const w = canvas.width;
+    const h = canvas.height;
+    const r = Math.min(radius, w / 2, h / 2);
+    const power = 2 / (2 ** curvature);
+    const steps = Math.max(64, Math.ceil(r * 2));
+    ctx.moveTo(r, 0);
+    for (let corner = 0; corner < 4; corner++) {
+      for (let step = 0; step <= steps; step++) {
+        const angle = step / steps * Math.PI / 2;
+        const sin = r * Math.sin(angle) ** power;
+        const cos = r * Math.cos(angle) ** power;
+        const point = [
+          [w - r + sin, r - cos],
+          [w - r + cos, h - r + sin],
+          [r - sin, h - r + cos],
+          [r - cos, r - sin],
+        ][corner];
+        ctx.lineTo(point[0], point[1]);
+      }
+    }
+    ctx.closePath();
+  } else if (typeof ctx.roundRect === 'function') {
     ctx.roundRect(0, 0, canvas.width, canvas.height, radius);
   } else {
     const w = canvas.width;
@@ -258,7 +283,7 @@ export function applyCanvasBorderRadius(canvas: HTMLCanvasElement, radius: numbe
  * 将指定 DOM 节点渲染为裁剪了透明圆角的 Canvas
  */
 export async function renderCardToCanvas(element: HTMLElement, options: ExportOptions = {}): Promise<HTMLCanvasElement> {
-  const { scale = 2.5, cardRadius = 16 } = options;
+  const { scale = 2.5, cardRadius = 24 } = options;
   const target = getCardTargetElement(element);
   sanitizeDomForScreenshot(target);
 
@@ -266,11 +291,14 @@ export async function renderCardToCanvas(element: HTMLElement, options: ExportOp
   const isOuterPadding = target.classList?.contains('has-outer-padding');
 
   let radius = 0;
+  let cornerShape = 'round';
   if (!isOuterPadding) {
     radius = cardRadius;
     try {
       const cardEl = target.classList?.contains('qs-card') ? target : target.querySelector('.qs-card');
-      const computedRadius = cardEl ? window.getComputedStyle(cardEl).borderRadius : window.getComputedStyle(target).borderRadius;
+      const cardStyle = window.getComputedStyle(cardEl || target);
+      const computedRadius = cardStyle.borderRadius;
+      cornerShape = cardStyle.getPropertyValue('corner-shape').trim() || 'round';
       if (computedRadius) {
         const parsed = parseFloat(computedRadius);
         if (!isNaN(parsed) && parsed > 0) {
@@ -289,7 +317,7 @@ export async function renderCardToCanvas(element: HTMLElement, options: ExportOp
     },
   });
 
-  return isOuterPadding ? rawCanvas : applyCanvasBorderRadius(rawCanvas, radius * scale);
+  return isOuterPadding ? rawCanvas : applyCanvasBorderRadius(rawCanvas, radius * scale, cornerShape);
 }
 
 /**

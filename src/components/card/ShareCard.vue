@@ -77,14 +77,14 @@ const themeCssVars = computed(() => {
     '--qs-prompt-bg': theme.components?.promptCard?.background || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)'),
     '--qs-prompt-border': theme.components?.promptCard?.border || 'none',
     '--qs-prompt-header-color': theme.components?.promptCard?.headerColor || 'inherit',
-    '--qs-prompt-radius': theme.components?.promptCard?.borderRadius || '14px',
+    '--qs-prompt-radius': theme.components?.promptCard?.borderRadius || '18px',
     '--qs-quote-bg': theme.components?.quoteBlock?.background || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'),
     '--qs-quote-border': theme.components?.quoteBlock?.borderColor || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'),
-    '--qs-quote-radius': theme.components?.quoteBlock?.borderRadius || '0 8px 8px 0',
+    '--qs-quote-radius': theme.components?.quoteBlock?.borderRadius || '0 12px 12px 0',
     '--qs-code-bg': theme.components?.codeBlock?.background || (theme.ambient.isDark ? '#141418' : '#f1f5f9'),
     '--qs-code-text': theme.components?.codeBlock?.color || theme.typography.textPrimary,
     '--qs-code-border': theme.components?.codeBlock?.border || 'none',
-    '--qs-code-radius': theme.components?.codeBlock?.borderRadius || '8px',
+    '--qs-code-radius': theme.components?.codeBlock?.borderRadius || '12px',
     '--qs-table-border': theme.components?.table?.borderColor || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'),
     '--qs-table-header-bg': theme.components?.table?.headerBg || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)'),
     '--qs-table-row-even-bg': theme.components?.table?.rowEvenBg || (theme.ambient.isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.01)'),
@@ -496,6 +496,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 <style scoped>
 /* 卡片外层包装容器 (标准 640px 物理排版宽度，外层 100% 直角) */
 .qs-card-wrapper {
+  --qs-corner-scale: 1;
   position: relative;
   box-sizing: border-box;
   user-select: text;
@@ -562,7 +563,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 }
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card {
   padding: 30px;
-  border-radius: 22px;
+  border-radius: calc(28px * var(--qs-corner-scale));
 }
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-author-handle,
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-footer-url {
@@ -602,7 +603,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 }
 .qs-card-wrapper[data-theme='craft-editorial'] .qs-card {
   padding: 30px;
-  border-radius: 14px;
+  border-radius: calc(24px * var(--qs-corner-scale));
 }
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card-header,
 .qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
@@ -670,7 +671,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   box-shadow: var(--qs-card-shadow), var(--qs-card-inner-glow);
   backdrop-filter: var(--qs-card-backdrop-filter);
   -webkit-backdrop-filter: var(--qs-card-backdrop-filter);
-  border-radius: var(--qs-card-radius);
+  border-radius: calc(var(--qs-card-radius) * var(--qs-corner-scale));
   padding: var(--qs-padding);
   color: var(--qs-text-primary);
   z-index: 1;
@@ -729,7 +730,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 14px;
+  border-radius: 16px;
 }
 .qs-publisher-avatar .qs-publisher-orb {
   --orb-edge: rgba(106, 132, 165, .2);
@@ -1107,7 +1108,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 /* X (Twitter) 转发原帖引用卡片 (Quote Tweet Box) */
 :deep(.quick-share-quote-tweet) {
   margin-top: 14px;
-  border-radius: 14px;
+  border-radius: calc(20px * var(--qs-corner-scale));
   border: 1px solid var(--qs-table-border, rgba(255, 255, 255, 0.12));
   background: var(--qs-prompt-bg, rgba(255, 255, 255, 0.04));
   padding: 12px 14px;
@@ -1174,7 +1175,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   gap: 6px;
   margin-top: 10px;
   width: 100%;
-  border-radius: 10px;
+  border-radius: calc(16px * var(--qs-corner-scale));
   overflow: hidden;
 }
 
@@ -1191,7 +1192,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: auto;
   max-height: 280px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: calc(12px * var(--qs-corner-scale));
   display: block;
 }
 
@@ -1201,7 +1202,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   max-width: 100%;
   height: auto;
   object-fit: contain;
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
   margin: 14px auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
@@ -1287,7 +1288,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 :deep(.quick-share-rich-body li code) {
   background-color: var(--qs-code-bg);
   color: var(--qs-code-text);
-  border-radius: 4px;
+  border-radius: 8px;
   padding: 2px 6px;
   font-size: 0.9em;
   white-space: pre-wrap !important;
@@ -1304,7 +1305,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   font-size: 0.88em;
   line-height: 1.55;
   border: 1px solid var(--qs-table-border);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -1367,7 +1368,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: auto !important;
   max-height: none !important;
   object-fit: contain !important;
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
   margin-top: 10px;
   margin-bottom: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -1384,7 +1385,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   padding: 10px 14px;
   margin-top: 10px;
   margin-bottom: 6px;
-  border-radius: 12px;
+  border-radius: 16px;
   background-color: var(--qs-code-bg);
   border: 1px solid var(--qs-prompt-border);
   font-size: 13px;
@@ -1408,14 +1409,14 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   gap: 12px;
   margin-bottom: 24px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
   overflow: hidden;
 }
 
 .qs-media-item {
   width: 100%;
   background-color: rgba(0, 0, 0, 0.04);
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
   overflow: hidden;
 }
 
@@ -1423,7 +1424,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   width: 100%;
   height: auto;
   object-fit: contain;
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
   display: block;
   margin: 0 auto;
 }
@@ -1434,7 +1435,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
 }
 :deep(.qs-media-mosaic > *) {
   min-width: 0;
@@ -1442,7 +1443,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: calc(8px * var(--qs-corner-scale));
 }
 :deep(.qs-media-mosaic img),
 :deep(.qs-media-mosaic .quick-share-video-container) {
@@ -1450,7 +1451,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: 100%;
   max-height: none;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: calc(8px * var(--qs-corner-scale));
 }
 :deep(.qs-media-three),
 :deep(.qs-media-four) {
@@ -1500,7 +1501,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: calc(16px * var(--qs-corner-scale));
 }
 
 :deep(.quick-share-video-container) {
@@ -1510,7 +1511,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: calc(16px * var(--qs-corner-scale));
 }
 
 .qs-video-play-badge {
@@ -1559,7 +1560,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   font-size: 12px;
   font-weight: 600;
   padding: 3px 7px;
-  border-radius: 5px;
+  border-radius: 8px;
   letter-spacing: 0.02em;
   pointer-events: none;
 }
@@ -1574,7 +1575,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   font-size: 11px;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 8px;
   letter-spacing: 0.02em;
   pointer-events: none;
 }
@@ -1603,5 +1604,39 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   opacity: 0.85;
   user-select: all;
   letter-spacing: -0.01em;
+}
+
+
+
+/* A longer superellipse transition flattens gently into the straight edges.
+   Older renderers keep the circular corners and their original dimensions. */
+@supports (corner-shape: superellipse(1.5)) {
+  .qs-card-wrapper {
+    --qs-corner-scale: 1.35;
+  }
+
+  .qs-card,
+  .qs-media-gallery,
+  .qs-media-item,
+  .qs-media-img,
+  .quick-share-video-container,
+  :deep(.quick-share-quote-tweet),
+  :deep(.quick-share-quote-media-grid),
+  :deep(.quick-share-quote-img),
+  :deep(.quick-share-rich-body .quick-share-rich-img),
+  :deep(.quick-share-prompt-body .quick-share-prompt-img),
+  :deep(.quick-share-prompt-body img),
+  :deep(.qs-media-mosaic),
+  :deep(.qs-media-mosaic > *),
+  :deep(.qs-media-mosaic img),
+  :deep(.qs-media-mosaic .quick-share-video-container),
+  :deep(.quick-share-video-container) {
+    corner-shape: superellipse(1.5);
+  }
+
+  .qs-card::before,
+  .qs-card::after {
+    corner-shape: inherit;
+  }
 }
 </style>
