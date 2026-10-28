@@ -533,8 +533,8 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   right: 12%;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #a93c12 22%, #ff8a3e 50%, #a93c12 78%, transparent);
-  box-shadow: 0 -2px 18px 2px #ff632e38;
+  background: linear-gradient(90deg, transparent, #a93c12b8 22%, #ff8a3ec7 50%, #a93c12b8 78%, transparent);
+  box-shadow: 0 -2px 18px 2px #ff632e2a;
   pointer-events: none;
 }
 .qs-card-wrapper[data-theme='raycast-dark'] .qs-card-header {
@@ -562,30 +562,31 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   padding: 32px;
 }
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card {
-  padding: 30px;
+  /* Keep the content inset after removing the 1px border. All optical layers
+     now share the exact same border box and native corner geometry. */
+  padding: 31px;
   border-radius: calc(28px * var(--qs-corner-scale));
 }
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-author-handle,
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-footer-url {
   opacity: 1;
 }
-/* A magnified copy of the ambient field is visible only through the bevel.
-   Keep this inside the card: negative insets get clipped during PNG export. */
+/* Native clipping keeps the rim concentric with the card at every size.
+   The narrow colored edge and soft glints are static glass cues for PNGs. */
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: var(--qs-outer-bg);
-  background-size: 118% 112%;
-  background-position: 42% 58%;
+  background: linear-gradient(135deg,
+    rgba(224,249,255,.76), rgba(255,255,255,.22) 28%,
+    rgba(255,255,255,.04) 48%, rgba(206,193,232,.38) 72%,
+    rgba(250,244,255,.70));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  filter: blur(1px);
-  opacity: .42;
   pointer-events: none;
 }
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card::after {
@@ -593,15 +594,21 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background-image:
-    linear-gradient(90deg, transparent 5%, rgba(255,255,255,.8) 25%, rgba(255,255,255,.96) 53%, rgba(255,255,255,.4) 82%, transparent 96%),
-    linear-gradient(90deg, transparent 4%, rgba(255,255,255,.48) 23%, rgba(255,255,255,.94) 57%, rgba(255,255,255,.68) 77%, transparent 96%);
-  background-size: 100% 2px, 100% 2px;
-  background-position: center top, center bottom;
-  background-repeat: no-repeat;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,.42),
+    inset 0 -2px 4px rgba(246,239,255,.30);
+  -webkit-mask-image: linear-gradient(115deg, #000, transparent 38%, transparent 62%, #000);
+  mask-image: linear-gradient(115deg, #000, transparent 38%, transparent 62%, #000);
   pointer-events: none;
 }
+.qs-card-wrapper[data-theme='liquid-glass'] :deep(.quick-share-quote-tweet),
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-reply-quote {
+  background: rgba(255,255,255,.22);
+  border-color: rgba(107,133,160,.10);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28);
+}
+
 .qs-card-wrapper[data-theme='craft-editorial'] .qs-card {
+  box-shadow: var(--qs-card-shadow);
   padding: 30px;
   border-radius: calc(24px * var(--qs-corner-scale));
 }
@@ -620,16 +627,29 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   padding-top: 20px;
   border-top: 1px solid rgba(125, 137, 153, .22);
 }
-.qs-card-wrapper[data-theme='craft-editorial']::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  opacity: .18;
-  pointer-events: none;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper-grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.68 .86' numOctaves='3' stitchTiles='stitch' seed='12'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23paper-grain)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");
-  background-size: 160px 160px;
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card-header,
+.qs-card-wrapper[data-theme='liquid-glass'] .qs-card-footer {
+  border-color: rgba(99,125,150,.13);
+}
+/* Low-contrast grain is a surface background, so it never covers content. */
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card {
+  background-image: url('@/assets/paper-fiber.png');
+  background-size: 320px 320px;
+  background-repeat: repeat;
+  background-blend-mode: multiply;
+}
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header,
+.qs-card-wrapper[data-theme='craft-editorial'] .qs-card-footer {
+  border-color: #a2907329;
+}
+.qs-card-wrapper[data-theme='raycast-dark'] :deep(.quick-share-quote-tweet) {
+  background: linear-gradient(145deg, #242426, #171719);
+  border-color: #ffffff0d;
+  box-shadow: inset 0 1px #ffffff05;
+}
+.qs-card-wrapper[data-theme='craft-editorial'] :deep(.quick-share-quote-tweet) {
+  background: #e8decb35;
+  border-color: #b6a38929;
 }
 .qs-card-wrapper[data-theme='craft-editorial'] .qs-footer-url::before {
   content: '';
