@@ -134,7 +134,7 @@ describe('XAdapter 结构解析与数据提取测试', () => {
       quote.innerHTML = post?.quoteHtml || '';
       expect(quote.querySelectorAll('.qs-video-play-badge')).toHaveLength(2);
       expect(Array.from(quote.querySelectorAll('.qs-video-duration-badge')).map(el => el.textContent)).toEqual(['0:12', '1:23']);
-      expect(quote.querySelector('.qs-media-mosaic.qs-media-with-video')).not.toBeNull();
+      expect(quote.querySelector('.qs-media-mosaic.qs-media-video-pair')).not.toBeNull();
       expect(quote.querySelectorAll('.qs-video-media-item')).toHaveLength(2);
       expect((quote.querySelector('.quick-share-quote-media-grid') as HTMLElement).style.gridTemplateColumns).toBe('minmax(0, 1.7777777777777777fr) minmax(0, 0.5625fr)');
       expect(Array.from(quote.querySelectorAll('.quick-share-quote-img')).map(el => el.getAttribute('src'))).toEqual([

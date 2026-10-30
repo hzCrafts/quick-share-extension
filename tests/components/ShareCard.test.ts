@@ -44,7 +44,7 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
       },
     });
     expect(wrapper.find('.qs-media-gallery').attributes('style')).toContain('minmax(0, 1.7777777777777777fr) minmax(0, 0.5625fr)');
-    expect(wrapper.find('.qs-media-gallery').classes()).toContain('qs-media-with-video');
+    expect(wrapper.find('.qs-media-gallery').classes()).toContain('qs-media-video-pair');
     expect(wrapper.findAll('.qs-media-gallery > .qs-video-media-item')).toHaveLength(2);
     expect(wrapper.findAll('.qs-media-gallery .qs-video-play-badge')).toHaveLength(2);
     expect(wrapper.findAll('.qs-media-gallery img').map(img => img.attributes('src'))).toEqual([

@@ -2,7 +2,7 @@
   "name": "quick-share-extension",
   "description": "Chrome extension to generate beautiful shareable post images from social platforms like X, Zhihu, and more.",
   "private": true,
-  "version": "0.3.12",
+  "version": "0.3.13",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -15,6 +15,7 @@
     "postinstall": "wxt prepare",
     "compile": "wxt prepare && vue-tsc --noEmit",
     "test": "vitest run",
+    "test:media-layout": "node scripts/verify-media-layout.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

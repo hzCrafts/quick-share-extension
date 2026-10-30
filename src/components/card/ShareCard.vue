@@ -4,7 +4,7 @@ import { formatDisplayUrl } from '@/utils/url';
 import { formatPostDate } from '@/utils/post-date';
 import type { PostData, PostMedia } from '@/types/post';
 import type { CardRenderOptions, QuickShareTheme } from '@/types/theme';
-import { videoPairColumns } from '@/utils/media-layout';
+import { mediaLayoutClasses as mediaLayout, videoPairColumns } from '@/utils/media-layout';
 import { getThemeById } from '@/utils/theme-engine';
 import { prepareExcerpt } from '@/utils/excerpt';
 import ThemeOrb from '@/components/ThemeOrb.vue';
@@ -14,14 +14,6 @@ const props = defineProps<{
   options: CardRenderOptions;
   customThemes?: QuickShareTheme[];
 }>();
-
-const mediaLayout = (media: PostMedia[]) => ({
-  'qs-media-mosaic': media.length > 1,
-  'qs-media-three': media.length === 3,
-  'qs-media-four': media.length === 4,
-  'qs-media-many': media.length > 4,
-  'qs-media-with-video': media.some(item => item.type === 'video'),
-});
 
 const mediaGridStyle = (media: PostMedia[]) => media.length > 1 ? {
   display: 'grid',
@@ -1490,23 +1482,24 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* Video covers keep their intrinsic ratio, including mixed landscape/portrait
-   pairs. Shared quote HTML uses the same rules during preview and export. */
-:deep(.qs-media-mosaic.qs-media-with-video) {
+/* Only a pair of videos with known ratios uses proportional, equal-height
+   columns. Mixed media and groups of 3+ keep the compact mosaic above. */
+:deep(.qs-media-mosaic.qs-media-video-pair) {
   aspect-ratio: auto;
   grid-template-rows: none;
   align-items: start;
 }
-:deep(.qs-media-with-video > *) {
+:deep(.qs-media-video-pair > *) {
   grid-row: auto;
 }
-:deep(.qs-media-with-video > .qs-video-media-item) {
+:deep(.qs-media-video-pair > .qs-video-media-item) {
   height: auto;
   aspect-ratio: auto;
   align-self: start;
 }
-:deep(.qs-video-media-item .quick-share-video-container),
-:deep(.qs-video-media-item img) {
+:deep(.qs-media-video-pair .quick-share-video-container),
+:deep(.qs-media-video-pair img),
+:deep(.quick-share-quote-media-grid:not(.qs-media-mosaic) .qs-video-media-item img) {
   height: auto;
   max-height: none;
   aspect-ratio: auto;

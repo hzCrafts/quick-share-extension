@@ -1,6 +1,6 @@
 import { BaseAdapter, type OnShareTrigger, type ExcerptSelection } from './base';
 import type { PostData, PostMedia } from '@/types/post';
-import { videoPairColumns } from '@/utils/media-layout';
+import { mediaLayoutClasses, videoPairColumns } from '@/utils/media-layout';
 import { cleanShareUrl } from '@/utils/url';
 import { sanitizeHtmlForCard } from '@/utils/exporter';
 
@@ -697,11 +697,11 @@ export class XAdapter extends BaseAdapter {
 
     // Media: keep all photos/video covers in their original order.
     if (quoteMedia.length > 0) {
-      const count = quoteMedia.length;
-      const gridClass = count === 1 ? 'grid-cols-1' : `qs-media-mosaic ${count === 3 ? 'qs-media-three' : count === 4 ? 'qs-media-four' : count > 4 ? 'qs-media-many' : ''}`;
+      const gridClass = quoteMedia.length === 1 ? 'grid-cols-1' : Object.entries(mediaLayoutClasses(quoteMedia))
+        .filter(([, enabled]) => enabled).map(([name]) => name).join(' ');
       const columns = videoPairColumns(quoteMedia);
       const gridStyle = columns ? ` style="display:grid;grid-template-columns:${columns}"` : '';
-      html += `<div${gridStyle} class="quick-share-quote-media-grid ${gridClass}${quoteMedia.some(item => item.type === 'video') ? ' qs-media-with-video' : ''}">`;
+      html += `<div${gridStyle} class="quick-share-quote-media-grid ${gridClass}">`;
       quoteMedia.forEach((media) => {
         if (media.type === 'video') html += '<div class="quick-share-video-container qs-video-media-item">';
         html += `<img class="quick-share-quote-img" src="${media.posterUrl || media.url}" alt="${media.type === 'video' ? 'video thumbnail' : 'media'}" crossorigin="anonymous" />`;
