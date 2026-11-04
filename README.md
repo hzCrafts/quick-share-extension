@@ -1,8 +1,8 @@
 # QuickShare
 
-把网页上值得分享的内容，变成一张好看的图片。
+把网页上值得分享的内容，变成一张好看的卡片。
 
-在 **X、知乎、ChatGPT、Gemini** 上可以分享整条内容；在公众号文章和其他网页上，选中文字就能分享。QuickShare 会保留文字、图片和原有排版，并提供三种卡片主题。打开预览后，图片会自动复制到剪贴板，也可以保存为 PNG。
+任意网页，选中文字就能分享，在 **X、知乎、ChatGPT、Gemini** 上可以分享整条内容及其评论。三种漂亮主题。
 
 <p align="center">
   <a href="docs/preview-raycast-dark.png"><img src="docs/preview-raycast-dark.png?v=0.3.13" alt="曜石主题" width="31%"></a>
