@@ -5,9 +5,9 @@
 在 **X、知乎、ChatGPT、Gemini** 上可以分享整条内容；在公众号文章和其他网页上，选中文字就能分享。QuickShare 会保留文字、图片和原有排版，并提供三种卡片主题。打开预览后，图片会自动复制到剪贴板，也可以保存为 PNG。
 
 <p align="center">
-  <a href="docs/preview-raycast-dark.png"><img src="docs/preview-raycast-dark.png" alt="曜石主题" width="31%"></a>
-  <a href="docs/preview-liquid-glass.png"><img src="docs/preview-liquid-glass.png" alt="冰川玻璃主题" width="31%"></a>
-  <a href="docs/preview-craft-editorial.png"><img src="docs/preview-craft-editorial.png" alt="暖纸墨色主题" width="31%"></a>
+  <a href="docs/preview-raycast-dark.png"><img src="docs/preview-raycast-dark.png?v=0.3.13" alt="曜石主题" width="31%"></a>
+  <a href="docs/preview-liquid-glass.png"><img src="docs/preview-liquid-glass.png?v=0.3.13" alt="冰川玻璃主题" width="31%"></a>
+  <a href="docs/preview-craft-editorial.png"><img src="docs/preview-craft-editorial.png?v=0.3.13" alt="暖纸墨色主题" width="31%"></a>
 </p>
 
 *示例：[Ivan Zhao 的 X 帖子](https://x.com/ivanhzhao/status/2038670159259619644)。*
