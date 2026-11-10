@@ -704,7 +704,8 @@ export class XAdapter extends BaseAdapter {
       html += `<div${gridStyle} class="quick-share-quote-media-grid ${gridClass}">`;
       quoteMedia.forEach((media) => {
         if (media.type === 'video') html += '<div class="quick-share-video-container qs-video-media-item">';
-        html += `<img class="quick-share-quote-img" src="${media.posterUrl || media.url}" alt="${media.type === 'video' ? 'video thumbnail' : 'media'}" crossorigin="anonymous" />`;
+        const frame = media.displayAspectRatio ? ` data-qs-display-ratio="${media.displayAspectRatio}"` : '';
+        html += `<img class="quick-share-quote-img" src="${media.posterUrl || media.url}"${frame} alt="${media.type === 'video' ? 'video thumbnail' : 'media'}" crossorigin="anonymous" />`;
         if (media.type === 'video') {
           html += '<div class="qs-video-play-badge"><svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z"/></svg></div>';
           if (media.duration) html += `<div class="qs-video-duration-badge">${media.duration}</div>`;
@@ -753,7 +754,15 @@ export class XAdapter extends BaseAdapter {
         const url = img.src.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
         if (seen.has(url)) continue;
         seen.add(url);
-        media.push({ type: 'image', url });
+        const bounds = (img.closest('[data-testid="tweetPhoto"]') || img).getBoundingClientRect();
+        const naturalRatio = img.naturalWidth / img.naturalHeight;
+        const displayedRatio = bounds.width / bounds.height;
+        // Preserve X's visibly cropped landscape frames, without reintroducing
+        // square cropping for portrait document screenshots or unloaded images.
+        const displayAspectRatio = Number.isFinite(naturalRatio) && naturalRatio > 1.35
+          && Number.isFinite(displayedRatio) && displayedRatio >= .85 && displayedRatio <= 1.3
+          && naturalRatio / displayedRatio > 1.15 ? displayedRatio : undefined;
+        media.push({ type: 'image', url, ...(displayAspectRatio ? { displayAspectRatio } : {}) });
       }
     }
     return media;

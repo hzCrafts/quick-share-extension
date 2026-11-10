@@ -14,6 +14,8 @@ export interface PostMedia {
   posterUrl?: string;
   /** Source media width / height, used for equal-height video pairs. */
   aspectRatio?: number;
+  /** X can present a landscape attachment in a cropped, near-square frame. */
+  displayAspectRatio?: number;
 }
 
 export interface PostContextThread {

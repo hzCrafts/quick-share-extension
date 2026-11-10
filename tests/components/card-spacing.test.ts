@@ -37,8 +37,40 @@ function tweet(body: string, media = '') {
 }
 
 // A native quote and a reply's root-post quote should both have one 18px gap.
-// With own media, the 24px text-to-media gap must remain intact.
+// With own media, the 12px text-to-media gap must remain intact.
 describe.each(themes)('X paragraph and quote spacing in %s', themeId => {
+  it.each([undefined, '', '<div><span> </span><br>&nbsp;</div>'])(
+    'omits an empty body for attachment-only posts (%s)', async contentHtml => {
+      const post = {
+        id: 'photo-only', platform: 'x' as const, url: 'https://x.com/author/status/1',
+        author: { name: 'Author' }, content: ' \n ', contentHtml,
+        media: [{ type: 'image' as const, url: 'https://pbs.twimg.com/media/photo' }],
+      };
+      card = mount(ShareCard, { props: { post, options: { ...options, themeId } }, attachTo: document.body });
+      expect(card.find('.qs-card-content').exists()).toBe(false);
+      expect(card.get('.qs-card-header').element.nextElementSibling).toBe(card.get('.qs-media-gallery').element);
+      expect(getComputedStyle(card.get('.qs-card-header').element).marginBottom).toBe('12px');
+      await card.setProps({ post: { ...post, content: 'First\n\nSecond', contentHtml: 'First<br><br>Second' } });
+      expect(card.findAll('.qs-card-content br')).toHaveLength(2);
+      await card.setProps({ post });
+      expect(card.find('.qs-card-content').exists()).toBe(false);
+    }
+  );
+
+  it.each([
+    { title: 'Article title' },
+    { contentHtml: '<img src="https://example.com/inline.png">' },
+    { contentHtml: '<p><strong>Text</strong></p>' },
+    { isExcerpt: true, contentHtml: '<p><br></p>' },
+    { platform: 'chatgpt', promptHtml: '<p>Question</p>' },
+  ])('keeps meaningful body content: %j', extra => {
+    card = mount(ShareCard, { props: { post: {
+      id: 'body', platform: 'x', url: 'https://x.com/author/status/1',
+      author: { name: 'Author' }, content: '', ...extra,
+    } as any, options: { ...options, themeId } }, attachTo: document.body });
+    expect(card.find('.qs-card-content').exists()).toBe(true);
+  });
+
   it.each(['<span>One line ❤️!</span>', '<span>First\n\nSecond</span>'])(
     'does not stack a content bottom margin with the quote top margin: %s', async body => {
       const post = await new XAdapter().extract(tweet(body), undefined, true);
@@ -57,7 +89,7 @@ describe.each(themes)('X paragraph and quote spacing in %s', themeId => {
     expect(card.find('.qs-native-quote').exists()).toBe(false);
     expect(card.findAll('.qs-card-content br')).toHaveLength(2);
     expect(card.findAll('.quick-share-article-paragraph')).toHaveLength(0);
-    expect(getComputedStyle(card.get('.qs-card-content').element).marginBottom).toBe('24px');
+    expect(getComputedStyle(card.get('.qs-card-content').element).marginBottom).toBe('12px');
   });
 
   it('keeps reply-to-root separation consistent with native quotes', async () => {
@@ -76,8 +108,10 @@ describe.each(themes)('X paragraph and quote spacing in %s', themeId => {
   it('keeps text-to-photo spacing and only one photo-to-quote gap', async () => {
     const post = await new XAdapter().extract(tweet('<span>Attached photo</span>', '<div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/photo?name=large"></div>'), undefined, true);
     card = mount(ShareCard, { props: { post: post!, options: { ...options, themeId } }, attachTo: document.body });
-    expect(getComputedStyle(card.get('.qs-card-content').element).marginBottom).toBe('24px');
+    expect(getComputedStyle(card.get('.qs-card-content').element).marginBottom).toBe('12px');
     expect(getComputedStyle(card.get('.qs-media-gallery').element).marginBottom).toBe('0px');
+    expect(getComputedStyle(card.get('.qs-card-header').element).marginBottom).toBe('12px');
+    expect(getComputedStyle(card.get('.qs-native-quote .quick-share-quote-tweet').element).marginBottom).toBe('12px');
     expect(getComputedStyle(card.get('.qs-native-quote .quick-share-quote-tweet').element).marginTop).toBe('18px');
   });
 

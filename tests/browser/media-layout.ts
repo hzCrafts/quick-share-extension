@@ -72,6 +72,11 @@ async function contextPost(media: any[], context: string) {
       });
       video.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
     }
+  const photos=[...entity.querySelectorAll('[data-testid="tweetPhoto"] img')];let pi=0;
+  for(const m of media)if(m.type==='image'){
+    const image=photos[pi++] as HTMLImageElement;
+    if(m.displayAspectRatio){Object.defineProperties(image,{naturalWidth:{value:m.aspectRatio*900},naturalHeight:{value:900}});image.parentElement!.getBoundingClientRect=()=>({width:300,height:300/m.displayAspectRatio} as DOMRect);}
+  }
   const post = await new XAdapter().extract(entity, undefined, true);
   entity.remove();
   return post!;
@@ -189,13 +194,40 @@ function verify(host: HTMLElement, media: any[], context: string, label: string)
 }
 async function save(host: HTMLElement, name: string) {
   const c = await renderCardToCanvas(host, { scale: 2.5 });
+  for (const grid of host.querySelectorAll('.qs-media-gallery, .quick-share-quote-media-grid')) {
+    assert(grid.classList.contains('qs-media-original'), name+': original layout missing');
+    for (const image of grid.querySelectorAll('img')) {
+      const r=image.getBoundingClientRect();
+      assert(Math.abs(r.width/r.height-(Number(image.dataset.qsDisplayRatio)||image.naturalWidth/image.naturalHeight))<.02, name+': cropped or distorted attachment');
+    }
+  }
+
   const blob = await new Promise<Blob>((resolve) => c.toBlob((v) => resolve(v!)));
   await fetch('/__media_results/' + name + '.png', { method: 'POST', body: blob });
-  assert(c.width === 1600, name + ': export lost Retina scale');
+  const outer = host.querySelector('.qs-card-wrapper')!.getBoundingClientRect();
+  const card = host.querySelector('.qs-card')!.getBoundingClientRect();
+  const insets = [card.left - outer.left, outer.right - card.right, card.top - outer.top, outer.bottom - card.bottom];
+  assert(insets.every(inset => near(inset, insets[0])), name + ': unequal outer margins');
+  const header = host.querySelector('.qs-card-header')!.getBoundingClientRect();
+  const content = (host.querySelector('.qs-card-content') || host.querySelector('.qs-media-gallery'))!.getBoundingClientRect();
+  assert(near(content.top - header.bottom, 12), name + ': extra header-to-content gap');
+  const footer = host.querySelector('.qs-card-footer')!;
+  const previous = footer.previousElementSibling!;
+  const lastBlock = previous.matches('.qs-native-quote') ? previous.querySelector('.quick-share-quote-tweet')! : previous;
+  assert(near(footer.getBoundingClientRect().top - lastBlock.getBoundingClientRect().bottom, 12), name + ': extra footer gap');
+  assert(Math.abs(c.width - outer.width * 2.5) <= 1, name + ': export lost Retina scale');
   report.exports++;
   return c;
 }
 async function run() {
+  for (const theme of themes) {
+    const { host, close } = await render({ ...base, content: '', media: mediaFor('ii') }, theme);
+    try {
+      assert(!host.querySelector('.qs-card-content'), 'attachment-only post has an empty body');
+      await save(host, `${theme}-attachment-only`);
+      report.layouts++;
+    } finally { close(); }
+  }
   const large = [5, 6, 9].flatMap((n) => [
     'i'.repeat(n),
     'v'.repeat(n),
@@ -291,6 +323,50 @@ async function run() {
           close();
         }
       }
+  // Verify complete document images in compact source-proportional rows.
+  const documentImage =
+    'data:image/svg+xml;base64,' +
+    btoa(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1200"><rect width="600" height="1200" fill="white"/>${Array.from({ length: 70 }, (_, y) => Array.from({ length: 24 }, (_, x) => `<rect x="${x * 24 + 12}" y="${y * 16 + 20}" width="10" height="5" fill="#222"/>`).join('')).join('')}<rect x="0" y="1180" width="600" height="20" fill="#4b88cc"/></svg>`,
+    );
+  for (const theme of themes)
+    for (const context of ['main', 'native', 'reply']) {
+      const media = mediaFor('vii');
+      media[1].url = documentImage;
+      media[2].url = documentImage + '#second';
+      const { host, close } = await render(await contextPost(media, context), theme);
+      try {
+        await save(host, `${theme}-${context}-document`);
+        const gallery = host.querySelector(selector(context))!;
+        assert(gallery.classList.contains('qs-media-original'), `${theme}/${context}: document not expanded`);
+        const images = [...gallery.querySelectorAll('img')];
+        for (const image of images) {
+          const r = image.getBoundingClientRect();
+          assert(
+            Math.abs(r.width / r.height - image.naturalWidth / image.naturalHeight) < 0.01,
+            'document was cropped',
+          );
+        }
+        const before = images[1].getBoundingClientRect(),
+          after = images[2].getBoundingClientRect();
+        assert(after.left >= before.right - 1, 'attachments must share a compact row');
+        report.layouts++;
+      } finally {
+        close();
+      }
+    }
+  for(const theme of themes)for(const context of ['main','native','reply']){
+    const media=[3410/1974,2864/1826].map((ratio,i)=>({type:'image',url:fixture(ratio,i),aspectRatio:ratio,displayAspectRatio:1}));
+    const {host,close}=await render(await contextPost(media,context),theme);
+    try{
+      await save(host,`${theme}-${context}-site-frame`);
+      const grid=host.querySelector(selector(context))!;
+      const images=[...grid.querySelectorAll('img')];
+      assert(images.length===2,'missing site-frame image');
+      for(const image of images){const r=image.getBoundingClientRect();assert(near(r.width,r.height),'lost near-square site frame');assert(getComputedStyle(image).objectFit==='cover','site frame stretched bitmap');}
+      report.layouts++;
+    }finally{close();}
+  }
   document.querySelector('#status')!.textContent = JSON.stringify(report);
   (window as any).report = report;
   (window as any).done = true;

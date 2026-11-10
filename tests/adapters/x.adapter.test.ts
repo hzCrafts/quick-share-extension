@@ -21,6 +21,36 @@ describe('XAdapter 结构解析与数据提取测试', () => {
 
   afterEach(() => adapter.stop());
 
+  it.each([
+    [3410, 1974, 320, 320, 1],
+    [3410, 1974, 354, 300, 1.18],
+    [3410, 1974, 341, 197.4, undefined],
+    [1246, 2048, 320, 320, undefined],
+    [2000, 2000, 320, 320, undefined],
+    [0, 0, 320, 320, undefined],
+    [3410, 1974, 0, 0, undefined],
+    [1400, 1000, 390, 300, undefined],
+  ])('preserves only visibly cropped landscape frames: %s×%s in %s×%s', async (w, h, fw, fh, expected) => {
+    for (const quoted of [false, true]) {
+      const photo = '<div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/frame.jpg?name=small"></div>';
+      document.body.innerHTML = `<article data-testid="tweet"><div data-testid="User-Name"><a href="/author">Author</a></div><div data-testid="tweetText">Text</div>${quoted ? `<div data-testid="quoteTweet"><div data-testid="User-Name"><a href="/quoted">Quoted</a></div><div data-testid="tweetText">Quote</div>${photo}</div>` : photo}</article>`;
+      const image = document.querySelector('img')!;
+      Object.defineProperties(image, { naturalWidth: { value: w }, naturalHeight: { value: h } });
+      image.parentElement!.getBoundingClientRect = () => ({ width: fw, height: fh } as DOMRect);
+      const post = await adapter.extract(document.querySelector('article')!, undefined, true);
+      if (quoted) {
+        const root = document.createElement('div'); root.innerHTML = post!.quoteHtml!;
+        const value = root.querySelector('img')!.getAttribute('data-qs-display-ratio');
+        if (expected === undefined) expect(value).toBeNull();
+        else expect(Number(value)).toBeCloseTo(expected, 5);
+        expect(post!.media).toBeUndefined();
+      } else {
+        if (expected === undefined) expect(post!.media![0].displayAspectRatio).toBeUndefined();
+        else expect(post!.media![0].displayAspectRatio).toBeCloseTo(expected, 5);
+      }
+    }
+  });
+
   describe('1. 路由与 URL 匹配', () => {
     it('匹配 x.com 和 twitter.com', () => {
       expect(adapter.match(new URL('https://x.com/elonmusk/status/123'))).toBe(true);

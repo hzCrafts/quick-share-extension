@@ -1,4 +1,5 @@
 import { domToCanvas } from 'modern-screenshot';
+import { prepareOriginalMedia } from './media-fit';
 
 export interface ExportOptions {
   scale?: number;
@@ -286,6 +287,7 @@ export async function renderCardToCanvas(element: HTMLElement, options: ExportOp
   const { scale = 2.5, cardRadius = 24 } = options;
   const target = getCardTargetElement(element);
   sanitizeDomForScreenshot(target);
+  await prepareOriginalMedia(target, fetchImageAsDataUrl);
 
   // 判断是否开启了外层背景边距 (外层 100% 直角输出)
   const isOuterPadding = target.classList?.contains('has-outer-padding');

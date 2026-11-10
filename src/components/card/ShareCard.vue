@@ -200,6 +200,17 @@ const platformConfig = computed(() => {
 const isAiPlatform = computed(() => props.post.platform === 'chatgpt' || props.post.platform === 'gemini');
 const titleOnlyHeader = computed(() => props.post.platform === 'universal' && !props.post.author.name.trim());
 const headerTitle = computed(() => props.post.title || props.post.siteName || '');
+const hasCardContent = computed(() => {
+  // An attachment-only post has no body: do not render a blank paragraph and
+  // its margins. Keep excerpts and every non-empty body's original formatting.
+  if (props.post.isExcerpt || (props.post.title && !titleOnlyHeader.value)
+    || (isAiPlatform.value && props.post.promptHtml)) return true;
+  if (!props.post.contentHtml) return !!props.post.content.trim();
+  const body = document.createElement('template');
+  body.innerHTML = props.post.contentHtml;
+  return !!body.content.textContent?.trim()
+    || !!body.content.querySelector('img, video, svg, iframe, canvas, math, table, hr');
+});
 const isWechatArticle = computed(() => {
   if (props.post.platform !== 'universal') return false;
   try { return new URL(props.post.url).hostname === 'mp.weixin.qq.com'; }
@@ -294,7 +305,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 
       <!-- Content 区域 -->
         <!-- Content: 标题（如有）与正文/图文流 -->
-        <div class="qs-card-content">
+        <div v-if="hasCardContent" class="qs-card-content">
           <!-- 1. AI 对话场景：用户提问 Prompt -->
           <div
             v-if="isAiPlatform && (post.title || post.promptHtml)"
@@ -431,6 +442,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
             <img
               v-else
               :src="item.url"
+              :data-qs-display-ratio="item.displayAspectRatio"
               alt="media"
               class="qs-media-img"
               crossorigin="anonymous"
@@ -454,7 +466,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
         </div>
         <div v-if="quotedPost.media?.length" class="quick-share-quote-media-grid" :class="mediaLayout(quotedPost.media)" :style="mediaGridStyle(quotedPost.media)">
           <div v-for="(item, index) in quotedPost.media" :key="index" :class="{ 'quick-share-video-container': item.type === 'video', 'qs-video-media-item': item.type === 'video' }">
-            <img :src="item.posterUrl || item.url" class="quick-share-quote-img" alt="media" crossorigin="anonymous" />
+            <img :src="item.posterUrl || item.url" :data-qs-display-ratio="item.displayAspectRatio" class="quick-share-quote-img" alt="media" crossorigin="anonymous" />
             <template v-if="item.type === 'video'">
               <div class="qs-video-play-badge"><svg viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 ml-0.5"><path d="M8 5v14l11-7z" /></svg></div>
               <div v-if="item.duration" class="qs-video-duration-badge">{{ item.duration }}</div>
@@ -506,6 +518,8 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 
 /* 开启背景边距：外层四个角彻底直角 (border-radius: 0)，填充 48px 主题外层背景衬底 */
 .qs-card-wrapper.has-outer-padding {
+  /* Shrink the background with the card, keeping all four insets equal. */
+  width: 594px;
   background: var(--qs-outer-bg);
   padding: 48px;
   border-radius: 0px !important;
@@ -531,7 +545,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 }
 .qs-card-wrapper[data-theme='raycast-dark'] .qs-card-header {
   padding-bottom: 22px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, .09);
 }
 .qs-card-wrapper[data-theme='raycast-dark'] .qs-avatar-fallback {
@@ -607,7 +621,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 .qs-card-wrapper[data-theme='liquid-glass'] .qs-card-header,
 .qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
   padding-bottom: 22px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   border-bottom: 1px solid rgba(125, 137, 153, .2);
 }
 .qs-card-wrapper[data-theme='craft-editorial'] .qs-card-header {
@@ -689,6 +703,11 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   z-index: 1;
 }
 
+/* The offscreen host stays 640px; export the narrower background itself. */
+.qs-card-wrapper.has-outer-padding > .qs-card {
+  width: 100%;
+}
+
 /* 顶部 1px Specular 镜面高光光刃 */
 .qs-specular-highlight {
   position: absolute;
@@ -706,7 +725,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   width: 100%;
 }
 
@@ -850,7 +869,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 
 /* Content */
 .qs-card-content {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   width: 100%;
   word-break: break-word;
 }
@@ -1076,7 +1095,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   margin-bottom: 0;
 }
 
-/* The quote owns its 18px separation. Keep the normal 24px content margin
+/* The quote owns its 18px separation. Keep the normal 12px content margin
    only when attachments sit between the text and the native quote. */
 .has-native-quote .qs-card-content:has(+ .qs-native-quote),
 .has-reply-quote .qs-card-content,
@@ -1088,11 +1107,11 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 }
 .qs-native-quote :deep(.quick-share-quote-tweet) {
   margin-top: 18px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 .has-reply-quote .qs-reply-quote {
   margin-top: 18px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 .qs-reply-quote-header {
   flex-wrap: wrap;
@@ -1419,7 +1438,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   width: 100%;
   border-radius: calc(16px * var(--qs-corner-scale));
   overflow: hidden;
@@ -1504,6 +1523,43 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   max-height: none;
   aspect-ratio: auto;
   object-fit: contain;
+}
+
+/* Complete source images, fitted into compact equal-height rows on export. */
+:deep(.qs-media-original) {
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 6px;
+  aspect-ratio: auto;
+  grid-template-rows: none;
+}
+:deep(.qs-media-original > *) {
+  flex: 0 0 var(--qs-media-width);
+  width: var(--qs-media-width) !important;
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  grid-row: auto;
+}
+:deep(.qs-media-original img),
+:deep(.qs-media-original .quick-share-video-container) {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+:deep(.qs-media-original > .qs-media-site-frame) {
+  height: var(--qs-media-height);
+}
+:deep(.qs-media-original .qs-media-site-frame img),
+:deep(.qs-media-original > img.qs-media-site-frame) {
+  height: var(--qs-media-height);
+  object-fit: cover;
 }
 
 /* 视频容器与播放微标 / 时长胶囊 */
