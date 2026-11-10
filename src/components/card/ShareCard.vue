@@ -408,6 +408,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
         <div
           v-if="!post.isExcerpt && post.media && post.media.length > 0"
           class="qs-media-gallery"
+          :data-qs-media-platform="post.platform"
           :class="mediaLayout(post.media)"
           :style="mediaGridStyle(post.media)"
         >
@@ -423,6 +424,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
             >
               <img
                 :src="item.posterUrl || item.url"
+                :data-qs-display-ratio="item.displayAspectRatio"
                 alt="video thumbnail"
                 class="qs-media-img"
                 crossorigin="anonymous"
@@ -464,7 +466,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
           <div v-if="quotedPost.contentHtml" class="quick-share-rich-body" v-html="quotedPost.contentHtml" />
           <p v-else class="qs-plain-content">{{ quotedPost.content }}</p>
         </div>
-        <div v-if="quotedPost.media?.length" class="quick-share-quote-media-grid" :class="mediaLayout(quotedPost.media)" :style="mediaGridStyle(quotedPost.media)">
+        <div v-if="quotedPost.media?.length" class="quick-share-quote-media-grid" :data-qs-media-platform="quotedPost.platform" :class="mediaLayout(quotedPost.media)" :style="mediaGridStyle(quotedPost.media)">
           <div v-for="(item, index) in quotedPost.media" :key="index" :class="{ 'quick-share-video-container': item.type === 'video', 'qs-video-media-item': item.type === 'video' }">
             <img :src="item.posterUrl || item.url" :data-qs-display-ratio="item.displayAspectRatio" class="quick-share-quote-img" alt="media" crossorigin="anonymous" />
             <template v-if="item.type === 'video'">
@@ -1131,7 +1133,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   color: var(--qs-text-secondary);
   font-size: 11px;
 }
-.qs-reply-quote .quick-share-quote-media-grid:not(.qs-media-mosaic) .quick-share-quote-img {
+.qs-reply-quote .quick-share-quote-media-grid:not(.qs-media-mosaic):not(.qs-media-original) .quick-share-quote-img {
   max-height: none;
   object-fit: contain;
 }
@@ -1557,6 +1559,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: var(--qs-media-height);
 }
 :deep(.qs-media-original .qs-media-site-frame img),
+:deep(.quick-share-quote-media-grid.qs-media-original > .qs-media-site-frame img),
 :deep(.qs-media-original > img.qs-media-site-frame) {
   height: var(--qs-media-height);
   object-fit: cover;

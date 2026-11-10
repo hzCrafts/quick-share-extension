@@ -1,12 +1,15 @@
-/** Fit complete attachments into compact rows without cropping or distortion. */
-export function fitMediaRows(ratios: number[], width: number, gap = 6): number[] {
+/** Fit source/display ratios into rows; X uses at most two attachments per row. */
+export function fitMediaRows(ratios: number[], width: number, gap = 6, maxColumns: 2 | 3 = 3): number[] {
   if (!Number.isFinite(width) || width <= 0 || ratios.some(r => !Number.isFinite(r) || r <= 0)) return [];
   if (ratios.length === 1) return [width];
-  const columns = ratios.length === 4 ? 2 : Math.min(3, ratios.length);
+  const columns = ratios.length === 4 ? 2 : Math.min(maxColumns, ratios.length);
   const sizes: number[] = [];
   for (let i = 0; i < ratios.length; i += columns) {
     const row = ratios.slice(i, i + columns);
-    const available = Math.max(0, width - gap * (row.length - 1));
+    // A trailing attachment stays left-aligned at one column's width.
+    const available = maxColumns === 2 && row.length === 1
+      ? Math.max(0, (width - gap) / 2)
+      : Math.max(0, width - gap * (row.length - 1));
     const height = Math.min(available / row.reduce((a, b) => a + b, 0), width * .9);
     sizes.push(...row.map(r => Math.floor(height * r * 64) / 64));
   }
@@ -40,7 +43,8 @@ export async function prepareOriginalMedia(root: HTMLElement, resolveImage: (src
         } catch { return NaN; }
       }
     }));
-    const widths = fitMediaRows(ratios, gallery.getBoundingClientRect().width);
+    const widths = fitMediaRows(ratios, gallery.getBoundingClientRect().width, 6,
+      gallery.dataset.qsMediaPlatform === 'x' ? 2 : 3);
     gallery.classList.toggle('qs-media-original', widths.length === items.length && items.length > 0);
     items.forEach((item, i) => {
       const image = item instanceof HTMLImageElement ? item : item.querySelector('img');

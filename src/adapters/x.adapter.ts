@@ -701,7 +701,7 @@ export class XAdapter extends BaseAdapter {
         .filter(([, enabled]) => enabled).map(([name]) => name).join(' ');
       const columns = videoPairColumns(quoteMedia);
       const gridStyle = columns ? ` style="display:grid;grid-template-columns:${columns}"` : '';
-      html += `<div${gridStyle} class="quick-share-quote-media-grid ${gridClass}">`;
+      html += `<div${gridStyle} data-qs-media-platform="x" class="quick-share-quote-media-grid ${gridClass}">`;
       quoteMedia.forEach((media) => {
         if (media.type === 'video') html += '<div class="quick-share-video-container qs-video-media-item">';
         const frame = media.displayAspectRatio ? ` data-qs-display-ratio="${media.displayAspectRatio}"` : '';
@@ -743,7 +743,8 @@ export class XAdapter extends BaseAdapter {
         const info = this.extractVideoInfo(container);
         if (!info || seen.has(info.posterUrl)) continue;
         seen.add(info.posterUrl);
-        media.push({ type: 'video', url: info.posterUrl, posterUrl: info.posterUrl, duration: info.duration, aspectRatio: info.aspectRatio });
+        media.push({ type: 'video', url: info.posterUrl, posterUrl: info.posterUrl, duration: info.duration, aspectRatio: info.aspectRatio,
+          displayAspectRatio: this.getMediaFrameRatio(node, root) });
       } else {
         // Quoted attachments must be explicitly marked; a link preview is not a photo.
         if (excludeLinkCards && !node.closest('[data-testid="tweetPhoto"]')) continue;
@@ -754,18 +755,21 @@ export class XAdapter extends BaseAdapter {
         const url = img.src.replace(/name=[a-zA-Z0-9_]+/, 'name=large');
         if (seen.has(url)) continue;
         seen.add(url);
-        const bounds = (img.closest('[data-testid="tweetPhoto"]') || img).getBoundingClientRect();
-        const naturalRatio = img.naturalWidth / img.naturalHeight;
-        const displayedRatio = bounds.width / bounds.height;
-        // Preserve X's visibly cropped landscape frames, without reintroducing
-        // square cropping for portrait document screenshots or unloaded images.
-        const displayAspectRatio = Number.isFinite(naturalRatio) && naturalRatio > 1.35
-          && Number.isFinite(displayedRatio) && displayedRatio >= .85 && displayedRatio <= 1.3
-          && naturalRatio / displayedRatio > 1.15 ? displayedRatio : undefined;
+        const displayAspectRatio = this.getMediaFrameRatio(img, root);
         media.push({ type: 'image', url, ...(displayAspectRatio ? { displayAspectRatio } : {}) });
       }
     }
     return media;
+  }
+
+  private getMediaFrameRatio(node: HTMLElement, root: HTMLElement): number | undefined {
+    // Measure the full tile, even when a carousel clips part of it offscreen.
+    // Never infer the page's crop from the downloaded file's dimensions.
+    const photo = node.closest<HTMLElement>('[data-testid="tweetPhoto"]');
+    const frame = photo && root.contains(photo) ? photo : node;
+    const { width, height } = frame.getBoundingClientRect();
+    const ratio = width / height;
+    return width > 0 && height > 0 && Number.isFinite(ratio) ? ratio : undefined;
   }
 
   /**

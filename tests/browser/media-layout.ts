@@ -2,6 +2,7 @@ import { createApp, nextTick, h, shallowRef } from 'vue';
 import ShareCard from '@/components/card/ShareCard.vue';
 import { XAdapter } from '@/adapters/x.adapter';
 import { renderCardToCanvas } from '@/utils/exporter';
+import { prepareOriginalMedia } from '@/utils/media-fit';
 import '@/assets/style.css';
 
 const themes = ['raycast-dark', 'liquid-glass', 'craft-editorial'];
@@ -70,12 +71,13 @@ async function contextPost(media: any[], context: string) {
         videoWidth: { value: m.aspectRatio * 900 },
         videoHeight: { value: 900 },
       });
-      video.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+      video.getBoundingClientRect = () => ({ width: m.displayAspectRatio ? 300 : 0, height: m.displayAspectRatio ? 300 / m.displayAspectRatio : 0 }) as DOMRect;
     }
   const photos=[...entity.querySelectorAll('[data-testid="tweetPhoto"] img')];let pi=0;
   for(const m of media)if(m.type==='image'){
     const image=photos[pi++] as HTMLImageElement;
-    if(m.displayAspectRatio){Object.defineProperties(image,{naturalWidth:{value:m.aspectRatio*900},naturalHeight:{value:900}});image.parentElement!.getBoundingClientRect=()=>({width:300,height:300/m.displayAspectRatio} as DOMRect);}
+    if(m.displayAspectRatio){Object.defineProperties(image,{naturalWidth:{value:m.aspectRatio*900},naturalHeight:{value:900}});}
+    image.parentElement!.getBoundingClientRect=()=>({width:m.displayAspectRatio?300:0,height:m.displayAspectRatio?300/m.displayAspectRatio:0} as DOMRect);
   }
   const post = await new XAdapter().extract(entity, undefined, true);
   entity.remove();
@@ -347,9 +349,12 @@ async function run() {
             'document was cropped',
           );
         }
-        const before = images[1].getBoundingClientRect(),
-          after = images[2].getBoundingClientRect();
-        assert(after.left >= before.right - 1, 'attachments must share a compact row');
+        const first = images[0].getBoundingClientRect(),
+          second = images[1].getBoundingClientRect(),
+          third = images[2].getBoundingClientRect();
+        assert(second.left >= first.right - 1, 'first pair must share a compact row');
+        assert(third.top >= Math.max(first.bottom, second.bottom), 'third attachment must wrap');
+        assert(near(third.left, first.left), 'last attachment must align left');
         report.layouts++;
       } finally {
         close();
@@ -367,6 +372,40 @@ async function run() {
       report.layouts++;
     }finally{close();}
   }
+  // X's carousel frames can be square even when files are landscape. All
+  // photo/video permutations must keep those frames and wrap after two tiles.
+  for (const theme of themes) for (const context of ['main', 'native', 'reply'])
+    for (const pattern of ['i', 'v', ...patterns]) {
+      const media = [...pattern].map((type, i) => ({
+        type: type === 'v' ? 'video' : 'image', url: fixture(i % 2 ? .6 : 1.8, i),
+        aspectRatio: i % 2 ? .6 : 1.8, displayAspectRatio: i % 2 ? .9 : 1,
+        ...(type === 'v' ? { duration: '0:12' } : {}),
+      }));
+      const { host, close } = await render(await contextPost(media, context), theme);
+      try {
+        await prepareOriginalMedia(host, async src => src);
+        const gallery = host.querySelector(selector(context))!;
+        const images = [...gallery.querySelectorAll('img')];
+        assert(images.length === media.length, 'missing carousel tile');
+        for (let i = 0; i < images.length; i++) {
+          const bounds = images[i].getBoundingClientRect();
+          assert(Math.abs(bounds.width / bounds.height - media[i].displayAspectRatio) < .01, `${theme}/${context}/${pattern}/${i}: lost source-page frame ratio`);
+          assert(getComputedStyle(images[i]).objectFit === 'cover', `${theme}/${context}/${pattern}/${i}: frame bitmap was stretched`);
+          if (i >= 2) {
+            assert(bounds.top >= images[i - 2].getBoundingClientRect().bottom, 'more than two tiles on a row');
+          }
+          if (i % 2 === 0) assert(near(bounds.left, gallery.getBoundingClientRect().left), 'row not left aligned');
+          const badge = images[i].closest('.qs-video-media-item')?.querySelector('.qs-video-play-badge');
+          if (badge) {
+            const b = badge.getBoundingClientRect();
+            assert(near((b.left + b.right) / 2, (bounds.left + bounds.right) / 2)
+              && near((b.top + b.bottom) / 2, (bounds.top + bounds.bottom) / 2), 'video badge outside its frame');
+          }
+        }
+        if (['iii', 'viv', 'ivvi'].includes(pattern)) await save(host, `${theme}-${context}-carousel-${pattern}`);
+        report.layouts++;
+      } finally { close(); }
+    }
   document.querySelector('#status')!.textContent = JSON.stringify(report);
   (window as any).report = report;
   (window as any).done = true;

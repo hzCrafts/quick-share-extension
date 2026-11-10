@@ -24,13 +24,16 @@ describe('XAdapter 结构解析与数据提取测试', () => {
   it.each([
     [3410, 1974, 320, 320, 1],
     [3410, 1974, 354, 300, 1.18],
-    [3410, 1974, 341, 197.4, undefined],
-    [1246, 2048, 320, 320, undefined],
-    [2000, 2000, 320, 320, undefined],
-    [0, 0, 320, 320, undefined],
+    [3410, 1974, 341, 197.4, 341 / 197.4],
+    [1246, 2048, 320, 320, 1],
+    [2000, 2000, 320, 320, 1],
+    [0, 0, 320, 320, 1],
     [3410, 1974, 0, 0, undefined],
-    [1400, 1000, 390, 300, undefined],
-  ])('preserves only visibly cropped landscape frames: %s×%s in %s×%s', async (w, h, fw, fh, expected) => {
+    [1400, 1000, 390, 300, 1.3],
+    [900, 1600, 320, 400, .8],
+    [3410, 1974, 320, 0, undefined],
+    [3410, 1974, 0, 320, undefined],
+  ])('preserves the page frame regardless of bitmap dimensions: %s×%s in %s×%s', async (w, h, fw, fh, expected) => {
     for (const quoted of [false, true]) {
       const photo = '<div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/frame.jpg?name=small"></div>';
       document.body.innerHTML = `<article data-testid="tweet"><div data-testid="User-Name"><a href="/author">Author</a></div><div data-testid="tweetText">Text</div>${quoted ? `<div data-testid="quoteTweet"><div data-testid="User-Name"><a href="/quoted">Quoted</a></div><div data-testid="tweetText">Quote</div>${photo}</div>` : photo}</article>`;
@@ -49,6 +52,23 @@ describe('XAdapter 结构解析与数据提取测试', () => {
         else expect(post!.media![0].displayAspectRatio).toBeCloseTo(expected, 5);
       }
     }
+  });
+
+  it('reads separate photo/video frames in an offscreen carousel in DOM order', async () => {
+    document.body.innerHTML = `<article data-testid="tweet"><div data-testid="tweetText">Media</div>
+      <div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/a.jpg"></div>
+      <div data-testid="tweetPhoto"><div data-testid="videoPlayer"><video poster="https://pbs.twimg.com/ext_tw_video_thumb/b.jpg"></video></div></div>
+      <div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/c.jpg"></div></article>`;
+    const frames = document.querySelectorAll<HTMLElement>('[data-testid="tweetPhoto"]');
+    [1, .8, 1.2].forEach((ratio, i) => {
+      frames[i].getBoundingClientRect = () => ({ left: 400 + i * 600, width: 600, height: 600 / ratio } as DOMRect);
+    });
+    const video = document.querySelector('video')!;
+    Object.defineProperties(video, { videoWidth: { value: 1920 }, videoHeight: { value: 1080 } });
+    const post = await adapter.extract(document.querySelector('article')!, undefined, true);
+    expect(post?.media?.map(m => m.type)).toEqual(['image', 'video', 'image']);
+    expect(post?.media?.map(m => m.displayAspectRatio)).toEqual([1, .8, 1.2]);
+    expect(post?.media?.[1].aspectRatio).toBeCloseTo(16 / 9);
   });
 
   describe('1. 路由与 URL 匹配', () => {
