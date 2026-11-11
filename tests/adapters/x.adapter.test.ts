@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { XAdapter } from '@/adapters/x.adapter';
 import { X_TWEET_SIMPLE_HTML, X_TWEET_MULTILINE_IMAGES_HTML } from '../fixtures/x.fixture';
+import { quotedRootFixture, QUOTED_ROOT_COMMENT } from '../fixtures/x-quoted-root.fixture';
 
 describe('XAdapter 结构解析与数据提取测试', () => {
   let adapter: XAdapter;
@@ -20,6 +21,52 @@ describe('XAdapter 结构解析与数据提取测试', () => {
   });
 
   afterEach(() => adapter.stop());
+
+  it.each([false, true])('attaches a quoted focal post to its first-level comment (linked quote time: %s)', async linked => {
+    Object.defineProperty(window, 'location', { value: new URL('https://x.com/landiantech/status/2119727913243414747'), writable: true });
+    document.body.innerHTML = quotedRootFixture(linked) + QUOTED_ROOT_COMMENT;
+    const root = document.getElementById('quoted-root')!;
+    expect(adapter.extractTweetId(root)).toBe('2119727913243414747');
+    expect(adapter.isPromotedTweet(root)).toBe(false);
+    const post = await adapter.extract(document.getElementById('quoted-root-comment')!);
+    expect(post?.url).toBe('https://x.com/china_TCL/status/2119765663921459555');
+    expect(post?.media).toHaveLength(1);
+    expect(post?.contextThread?.parentPost).toBeUndefined();
+    const context = post?.contextThread?.rootPost;
+    expect(context?.url).toBe('https://x.com/landiantech/status/2119727913243414747');
+    expect(context?.createdAt).toBe('2026-11-09T09:44:51.000Z');
+    expect(context?.contentHtml).toContain('只要你的脸皮够');
+    expect(context?.quoteHtml).toContain('Thanks 😉');
+    expect((await adapter.extract(root))?.contextThread).toBeUndefined();
+  });
+
+  it('retains the quoted root snapshot when scrolling removes it from the detail page', async () => {
+    Object.defineProperty(window, 'location', { value: new URL('https://x.com/landiantech/status/2119727913243414747'), writable: true });
+    document.body.innerHTML = quotedRootFixture() + QUOTED_ROOT_COMMENT;
+    adapter.start(() => {});
+    document.getElementById('quoted-root')!.remove();
+    const post = await adapter.extract(document.getElementById('quoted-root-comment')!);
+    expect(post?.contextThread?.rootPost?.contentHtml).toContain('只要你的脸皮够');
+    expect(post?.contextThread?.rootPost?.quoteHtml).toContain('Thanks 😉');
+  });
+
+  it('uses a quoted comment own link/date rather than the timestamp inside its quote', async () => {
+    Object.defineProperty(window, 'location', { value: new URL('https://x.com/landiantech/status/2119727913243414747'), writable: true });
+    const quote = '<div role="link" tabindex="0"><div data-testid="tweetText">Comment quote</div><time datetime="2000-01-01T00:00:00Z">Old date</time></div>';
+    document.body.innerHTML = quotedRootFixture() + QUOTED_ROOT_COMMENT.replace('<a href="/china_TCL/status/', quote + '<a href="/china_TCL/status/');
+    const post = await adapter.extract(document.getElementById('quoted-root-comment')!);
+    expect(post?.url).toBe('https://x.com/china_TCL/status/2119765663921459555');
+    expect(post?.createdAt).toBe('2026-11-09T12:14:00.000Z');
+    expect(post?.quoteHtml).toContain('Comment quote');
+    expect(post?.contextThread?.rootPost?.author.handle).toBe('@landiantech');
+  });
+
+  it('does not borrow a quote timestamp when the outer post has no own status link', async () => {
+    document.body.innerHTML = quotedRootFixture(true).replace(/<a href="\/landiantech\/status\/[\s\S]*?<\/a>/, '');
+    const root = document.getElementById('quoted-root')!;
+    expect(adapter.extractTweetId(root)).toBeNull();
+    expect(adapter.isPromotedTweet(root)).toBe(true);
+  });
 
   it.each([
     [3410, 1974, 320, 320, 1],

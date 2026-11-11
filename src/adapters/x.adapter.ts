@@ -181,7 +181,7 @@ export class XAdapter extends BaseAdapter {
       const avatarUrl = avatarEl?.getAttribute('src') || avatarEl?.src;
 
       // 提取时间与原文链接并清洗
-      const timeEl = tweet.querySelector('time');
+      const timeEl = this.getOwnTimestamp(tweet);
       const timeParentLink = timeEl?.closest('a');
       let rawUrl = timeParentLink ? (timeParentLink.getAttribute('href') || timeParentLink.href) : window.location.href;
       if (rawUrl.startsWith('/')) {
@@ -325,7 +325,7 @@ export class XAdapter extends BaseAdapter {
    * 从推文节点提取其唯一的推文 ID (Tweet ID)
    */
   extractTweetId(tweet: HTMLElement): string | null {
-    const timeLink = tweet.querySelector('time')?.closest<HTMLAnchorElement>('a');
+    const timeLink = this.getOwnTimestamp(tweet)?.closest<HTMLAnchorElement>('a');
     const href = timeLink?.getAttribute('href') || timeLink?.href || '';
     const match = href.match(/\/status\/(\d+)/);
     return match ? match[1] : null;
@@ -441,7 +441,7 @@ export class XAdapter extends BaseAdapter {
    */
   isPromotedTweet(tweet: HTMLElement): boolean {
     // 1. 检查推文是否缺少常规 time 链接（广告推文通常没有标准的推文发布时间 /status/ 链接）
-    const timeLink = tweet.querySelector('time')?.closest<HTMLAnchorElement>('a');
+    const timeLink = this.getOwnTimestamp(tweet)?.closest<HTMLAnchorElement>('a');
     const href = timeLink?.getAttribute('href') || timeLink?.href || '';
     if (!timeLink || !href.includes('/status/')) {
       return true;
@@ -593,7 +593,7 @@ export class XAdapter extends BaseAdapter {
   /**
    * 提取转发/引用的原帖 (Quote Tweet) 结构
    */
-  private extractQuoteTweet(tweet: HTMLElement): { html: string; text: string; element: HTMLElement } | null {
+  private findQuoteElement(tweet: HTMLElement): HTMLElement | null {
     // 寻找推文容器内部的引用推文块 (role="link" 且内部含有 User-Name 或 tweetText，或者是旧版 data-testid="quoteTweet")
     const candidates = tweet.querySelectorAll<HTMLElement>(
       'div[role="link"], div[data-testid="quoteTweet"], [role="link"][tabindex="0"]'
@@ -608,6 +608,18 @@ export class XAdapter extends BaseAdapter {
         break;
       }
     }
+    return quoteEl;
+  }
+
+  private getOwnTimestamp(tweet: HTMLElement): HTMLTimeElement | undefined {
+    const quote = this.findQuoteElement(tweet);
+    return Array.from(tweet.querySelectorAll('time')).find(time =>
+      !quote?.contains(time) && time.closest('article[data-testid="tweet"]') === tweet
+    );
+  }
+
+  private extractQuoteTweet(tweet: HTMLElement): { html: string; text: string; element: HTMLElement } | null {
+    const quoteEl = this.findQuoteElement(tweet);
     if (!quoteEl) return null;
 
     // 1. 提取原作者头像

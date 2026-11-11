@@ -3,6 +3,7 @@ import ShareCard from '@/components/card/ShareCard.vue';
 import { XAdapter } from '@/adapters/x.adapter';
 import { renderCardToCanvas } from '@/utils/exporter';
 import { prepareOriginalMedia } from '@/utils/media-fit';
+import { quotedRootFixture, QUOTED_ROOT_COMMENT } from '../fixtures/x-quoted-root.fixture';
 import '@/assets/style.css';
 
 const themes = ['raycast-dark', 'liquid-glass', 'craft-editorial'];
@@ -222,6 +223,34 @@ async function save(host: HTMLElement, name: string) {
   return c;
 }
 async function run() {
+  // Reported comment on a root containing a native quote: extraction must not
+  // use the quote's earlier timestamp as the focal post's identity or date.
+  for (const theme of themes) {
+    const source = document.createElement('div'); source.style.display = 'none';
+    source.innerHTML = quotedRootFixture() + QUOTED_ROOT_COMMENT;
+    source.querySelector('img')!.src = fixture(1.5, 0);
+    document.body.appendChild(source);
+    const originalUrl = location.href;
+    let post;
+    try {
+      history.replaceState(null, '', '/landiantech/status/2119727913243414747');
+      post = await new XAdapter().extract(source.querySelector<HTMLElement>('#quoted-root-comment')!);
+    } finally { history.replaceState(null, '', originalUrl); source.remove(); }
+    const { host, close } = await render(post, theme);
+    try {
+      assert(post?.contextThread?.rootPost?.url === 'https://x.com/landiantech/status/2119727913243414747', 'quoted root identity missing');
+      assert(post?.contextThread?.rootPost?.createdAt === '2026-11-09T09:44:51.000Z', 'borrowed native quote date');
+      const root = host.querySelector('.qs-reply-quote')!;
+      assert(root?.textContent?.includes('只要你的脸皮够') === true, 'root body missing');
+      assert(root.querySelector('.qs-reply-native-quote')?.textContent?.includes('Thanks 😉') === true, 'root native quote missing');
+      await save(host, `${theme}-comment-quoted-root`);
+      const photo = host.querySelector('.qs-media-gallery')!.getBoundingClientRect();
+      const bounds = root.getBoundingClientRect();
+      assert(bounds.top >= photo.bottom, 'root must follow comment attachments');
+      assert(bounds.width > 0 && bounds.right <= host.querySelector('.qs-card')!.getBoundingClientRect().right, 'root quote overflows card');
+      report.layouts++;
+    } finally { close(); }
+  }
   for (const theme of themes) {
     const { host, close } = await render({ ...base, content: '', media: mediaFor('ii') }, theme);
     try {

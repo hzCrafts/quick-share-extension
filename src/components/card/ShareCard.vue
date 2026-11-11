@@ -475,6 +475,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
             </template>
           </div>
         </div>
+        <div v-if="quotedPost.quoteHtml" class="qs-reply-native-quote" v-html="quotedPost.quoteHtml" />
       </div>
 
       <!-- Footer: 原文链接与站点图标 -->
@@ -503,6 +504,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 /* 卡片外层包装容器 (标准 640px 物理排版宽度，外层 100% 直角) */
 .qs-card-wrapper {
   --qs-corner-scale: 1;
+  --qs-media-radius: 8px;
   position: relative;
   box-sizing: border-box;
   user-select: text;
@@ -1208,7 +1210,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   gap: 6px;
   margin-top: 10px;
   width: 100%;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -1225,7 +1227,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: auto;
   max-height: 280px;
   object-fit: cover;
-  border-radius: calc(12px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
   display: block;
 }
 
@@ -1235,7 +1237,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   max-width: 100%;
   height: auto;
   object-fit: contain;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
   margin: 14px auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
@@ -1401,7 +1403,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: auto !important;
   max-height: none !important;
   object-fit: contain !important;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
   margin-top: 10px;
   margin-bottom: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -1442,14 +1444,14 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   gap: 12px;
   margin-bottom: 12px;
   width: 100%;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: 0;
   overflow: hidden;
 }
 
 .qs-media-item {
   width: 100%;
   background-color: rgba(0, 0, 0, 0.04);
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
   overflow: hidden;
 }
 
@@ -1457,7 +1459,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   width: 100%;
   height: auto;
   object-fit: contain;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
   display: block;
   margin: 0 auto;
 }
@@ -1468,7 +1470,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   overflow: hidden;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: 0;
 }
 :deep(.qs-media-mosaic > *) {
   min-width: 0;
@@ -1476,7 +1478,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: calc(8px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
 }
 :deep(.qs-media-mosaic img),
 :deep(.qs-media-mosaic .quick-share-video-container) {
@@ -1484,7 +1486,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   height: 100%;
   max-height: none;
   object-fit: cover;
-  border-radius: calc(8px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
 }
 :deep(.qs-media-three),
 :deep(.qs-media-four) {
@@ -1573,7 +1575,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
 }
 
 :deep(.quick-share-video-container) {
@@ -1583,7 +1585,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: calc(16px * var(--qs-corner-scale));
+  border-radius: var(--qs-media-radius);
 }
 
 .qs-video-play-badge {
@@ -1688,21 +1690,7 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
   }
 
   .qs-card,
-  .qs-media-gallery,
-  .qs-media-item,
-  .qs-media-img,
-  .quick-share-video-container,
-  :deep(.quick-share-quote-tweet),
-  :deep(.quick-share-quote-media-grid),
-  :deep(.quick-share-quote-img),
-  :deep(.quick-share-rich-body .quick-share-rich-img),
-  :deep(.quick-share-prompt-body .quick-share-prompt-img),
-  :deep(.quick-share-prompt-body img),
-  :deep(.qs-media-mosaic),
-  :deep(.qs-media-mosaic > *),
-  :deep(.qs-media-mosaic img),
-  :deep(.qs-media-mosaic .quick-share-video-container),
-  :deep(.quick-share-video-container) {
+  :deep(.quick-share-quote-tweet) {
     corner-shape: superellipse(1.5);
   }
 

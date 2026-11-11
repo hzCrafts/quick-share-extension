@@ -38,6 +38,12 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Verify comment sharing through the real editor
+        run: |
+          npx --yes --package @playwright/cli@0.1.22 playwright-cli install-browser chrome --with-deps
+          pnpm test:reply-share
+          pnpm test:media-layout
+
       - name: Bundle Extension (Chrome & Firefox)
         run: |
           pnpm zip

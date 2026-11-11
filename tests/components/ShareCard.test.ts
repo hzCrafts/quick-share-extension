@@ -3,6 +3,8 @@ import { mount } from '@vue/test-utils';
 import ShareCard from '@/components/card/ShareCard.vue';
 import type { PostData } from '@/types/post';
 import type { CardRenderOptions } from '@/types/theme';
+import { XAdapter } from '@/adapters/x.adapter';
+import { quotedRootFixture, QUOTED_ROOT_COMMENT } from '../fixtures/x-quoted-root.fixture';
 
 describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
   const defaultOptions: CardRenderOptions = {
@@ -236,6 +238,26 @@ describe('ShareCard 组件 DOM 结构渲染与保真度测试', () => {
 
   describe('Reply quote cards', () => {
     const root: PostData = { id: 'root', platform: 'x', url: 'https://x.com/author/status/1', author: { name: 'Original author', handle: '@author' }, content: 'Original post', createdAt: '2026-09-20T01:00:00Z', media: [{ type: 'video', url: 'https://example.com/video', posterUrl: 'https://example.com/poster.png', duration: '1:20' }] };
+    it.each(['raycast-dark', 'liquid-glass', 'craft-editorial'])('extracts and renders the comment, media, quoted root and its native quote in %s', async themeId => {
+      Object.defineProperty(window, 'location', { value: new URL('https://x.com/landiantech/status/2119727913243414747'), writable: true });
+      const source = document.createElement('div'); source.innerHTML = quotedRootFixture() + QUOTED_ROOT_COMMENT;
+      document.body.appendChild(source);
+      const adapter = new XAdapter();
+      let wrapper: ReturnType<typeof mount> | undefined;
+      try {
+        const post = await adapter.extract(source.querySelector<HTMLElement>('#quoted-root-comment')!);
+        wrapper = mount(ShareCard, { props: { post: post!, options: { ...defaultOptions, themeId } } });
+        expect(wrapper.get('.qs-reply-quote .quick-share-quote-name').text()).toBe('蓝点网');
+        expect(wrapper.get('.qs-reply-quote > .quick-share-quote-text').text()).toContain('只要你的脸皮够');
+        expect(wrapper.get('.qs-reply-native-quote').text()).toContain('Thanks 😉');
+        expect(wrapper.get('.qs-reply-quote time').attributes('datetime')).toBe('2026-11-09T09:44:51.000Z');
+        const html = wrapper.html();
+        expect(html.indexOf('中专生')).toBeLessThan(html.indexOf('comment-table.jpg'));
+        expect(html.indexOf('comment-table.jpg')).toBeLessThan(html.indexOf('只要你的脸皮够'));
+        expect(html.indexOf('只要你的脸皮够')).toBeLessThan(html.indexOf('Thanks 😉'));
+        expect(wrapper.get('.qs-footer-url').attributes('title')).toBe('https://x.com/china_TCL/status/2119765663921459555');
+      } finally { wrapper?.unmount(); adapter.stop(); source.remove(); }
+    });
     it.each(['raycast-dark', 'liquid-glass', 'craft-editorial'])('shows comment then root with video and date in %s', themeId => {
       const wrapper = mount(ShareCard, { props: { post: { ...samplePost, platform: 'x', contentHtml: '<p>My reply</p>', contextThread: { rootPost: root } }, options: { ...defaultOptions, themeId } } });
       expect(wrapper.get('.qs-card-header').text()).toContain(samplePost.author.name);
