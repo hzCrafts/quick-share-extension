@@ -31,6 +31,8 @@ export interface PostData {
   siteName?: string;
   siteIconUrl?: string;
   title?: string;
+  /** Source Article metadata, separate from the selected body and its context. */
+  article?: { title: string; coverUrl?: string };
   promptHtml?: string;
   content: string;
   contentHtml?: string;

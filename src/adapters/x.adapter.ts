@@ -57,7 +57,39 @@ export class XAdapter extends BaseAdapter {
    * 获取 X 推文的正文根容器
    */
   getContentRootFromEntity(entity: HTMLElement): HTMLElement | null {
-    return entity.querySelector<HTMLElement>('div[data-testid="tweetText"]') || entity;
+    return this.getArticleView(entity)?.querySelector<HTMLElement>('[data-testid="twitterArticleRichTextView"]')
+      || entity.querySelector<HTMLElement>('div[data-testid="tweetText"]') || entity;
+  }
+
+  private getArticleView(entity: HTMLElement): HTMLElement | undefined {
+    const quote = this.findQuoteElement(entity);
+    return Array.from(entity.querySelectorAll<HTMLElement>('[data-testid="twitterArticleReadView"]'))
+      .find(view => !quote?.contains(view) && !!view.querySelector('[data-testid="twitterArticleRichTextView"]'));
+  }
+
+  private extractArticleHeader(entity: HTMLElement): PostData['article'] {
+    const view = this.getArticleView(entity);
+    const titleEl = view?.querySelector<HTMLElement>('[data-testid="twitter-article-title"]');
+    const title = titleEl?.textContent?.trim();
+    if (!view || !titleEl || !title) return;
+    // Only a header image before the title is a cover. Never substitute an
+    // avatar, an inline body image, a quote's cover or page-wide OG metadata.
+    const cover = Array.from(view.querySelectorAll<HTMLImageElement>('img')).find(img =>
+      !!(titleEl.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_PRECEDING)
+      && !img.closest('[data-testid="twitterArticleRichTextView"]')
+      && !img.src.includes('profile_images')
+    );
+    let coverUrl: string | undefined;
+    if (cover?.getAttribute('src')) {
+      try {
+        const url = new URL(cover.getAttribute('src')!, window.location.href);
+        if (['https:', 'http:'].includes(url.protocol)) {
+          if (url.hostname === 'pbs.twimg.com') url.searchParams.set('name', 'large');
+          coverUrl = url.href;
+        }
+      } catch { /* Missing/invalid covers leave a title-only header. */ }
+    }
+    return { title, ...(coverUrl ? { coverUrl } : {}) };
   }
 
   /** Keep only this detail page's loaded post when X virtualizes it away. */
@@ -310,6 +342,7 @@ export class XAdapter extends BaseAdapter {
         contentHtml,
         quoteHtml,
         isExcerpt,
+        ...(selection ? { article: this.extractArticleHeader(tweet) } : {}),
         excerptBeforeHtml,
         excerptAfterHtml,
         media: mediaList,

@@ -4,6 +4,8 @@ import { XAdapter } from '@/adapters/x.adapter';
 import { renderCardToCanvas } from '@/utils/exporter';
 import { prepareOriginalMedia } from '@/utils/media-fit';
 import { quotedRootFixture, QUOTED_ROOT_COMMENT } from '../fixtures/x-quoted-root.fixture';
+import { articleTweet, ARTICLE_TITLE } from '../fixtures/x-article.fixture';
+import { extractSelection } from '@/utils/selection';
 import '@/assets/style.css';
 
 const themes = ['raycast-dark', 'liquid-glass', 'craft-editorial'];
@@ -223,6 +225,24 @@ async function save(host: HTMLElement, name: string) {
   return c;
 }
 async function run() {
+  for (const theme of themes) {
+    const source = document.createElement('div');
+    source.innerHTML = articleTweet('/tests/fixtures/article-cover.svg'); document.body.appendChild(source);
+    const range = document.createRange();
+    range.selectNodeContents(source.querySelectorAll('[data-text]')[1]);
+    const post = await extractSelection(new XAdapter(), range); source.remove();
+    const { host, close } = await render(post, theme);
+    try {
+      const cover = host.querySelector('.qs-article-cover')!.getBoundingClientRect();
+      const title = host.querySelector('.qs-article-title')!;
+      const excerpt = host.querySelector('.qs-excerpt-wrapper')!.getBoundingClientRect();
+      assert(title.textContent === ARTICLE_TITLE, 'Article title missing');
+      assert(cover.bottom <= title.getBoundingClientRect().top && title.getBoundingClientRect().bottom <= excerpt.top, 'Article header overlaps excerpt');
+      assert(near(cover.width / cover.height, 2.5), 'Article banner lost proportion');
+      await save(host, `${theme}-article-selection`);
+      report.layouts++;
+    } finally { close(); }
+  }
   // Reported comment on a root containing a native quote: extraction must not
   // use the quote's earlier timestamp as the focal post's identity or date.
   for (const theme of themes) {

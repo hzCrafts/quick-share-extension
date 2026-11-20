@@ -218,6 +218,8 @@ const isWechatArticle = computed(() => {
 });
 const accountAvatarFailed = ref(false);
 watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = false; });
+const articleCoverFailed = ref(false);
+watch(() => props.post.article?.coverUrl, () => { articleCoverFailed.value = false; });
 </script>
 
 <template>
@@ -306,6 +308,11 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
       <!-- Content 区域 -->
         <!-- Content: 标题（如有）与正文/图文流 -->
         <div v-if="hasCardContent" class="qs-card-content">
+          <section v-if="post.isExcerpt && post.article" class="qs-article-heading">
+            <img v-if="post.article.coverUrl && !articleCoverFailed" :src="post.article.coverUrl"
+              class="qs-article-cover" alt="" crossorigin="anonymous" @error="articleCoverFailed = true" />
+            <h3 class="qs-article-title">{{ post.article.title }}</h3>
+          </section>
           <!-- 1. AI 对话场景：用户提问 Prompt -->
           <div
             v-if="isAiPlatform && (post.title || post.promptHtml)"
@@ -872,6 +879,28 @@ watch(() => props.post.author.avatarUrl, () => { accountAvatarFailed.value = fal
 }
 
 /* Content */
+.qs-article-heading {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--qs-table-border);
+}
+.qs-article-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  object-fit: cover;
+  border-radius: var(--qs-media-radius);
+  margin-bottom: 14px;
+}
+.qs-article-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: -.02em;
+  color: var(--qs-text-primary);
+  overflow-wrap: anywhere;
+}
 .qs-card-content {
   margin-bottom: 12px;
   width: 100%;
